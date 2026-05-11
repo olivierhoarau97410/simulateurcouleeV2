@@ -1,0 +1,39 @@
+# Données terrain (trop volumineuses pour GitHub — distribuer via Release)
+tiles/terrain/
+LIdar/
+
+# Anciens scripts de développement
+lave.py
+"lave4 BIEN.py"
+lave4\ BIEN.py
+lave8_25D_avec_dezoomBIEN\ BIEN.py
+lave8_25D_avec_dezoomBIEN.py
+lave8_25D_avec_dezoomBOF_matplotlib.py
+laveDEF11_25D_avec_dezoom_et_penteTactisme_etHauteurcritiqueBIEN.py
+simul_lave_25d.html
+simul_lave_25d_RUN.html
+
+# Anciens viewers et utilitaires non liés au simulateur
+lidar-viewer-reunion.html
+lidar-viewer-reunion-v2.html
+lidar_viewer_reunion.html
+paleosealevel.html
+terrain_lidar.js
+tile_loader.js
+preprocess_lidar.py
+transects_lidar_reunion.py
+batch_simulations.py
+download_and_process_lidar_hd.py
+youtube_dl.py
+make_tuto_word.py
+
+# Résultats et données de travail
+resultats/
+resultats_transects/
+
+# Fichiers système et temporaires
+.DS_Store
+*.mov
+~$*
+*.pyc
+__pycache__/

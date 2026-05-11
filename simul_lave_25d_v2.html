@@ -1,0 +1,1317 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SIMUL_LAVE_2.5D — La Réunion LiDAR HD</title>
+<script src="tile_loader.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #111; color: #eee; font-family: Arial, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 10px;
+}
+h1 { color: #cc3300; font-size: 26px; margin: 8px 0 2px; }
+#info-bar {
+    font-size: 14px; font-weight: bold; text-align: center;
+    padding: 4px 0; min-height: 22px;
+}
+#coord-bar {
+    font-size: 12px; color: #aaa; text-align: center;
+    padding: 2px 0; min-height: 18px; font-family: monospace;
+}
+#sim-wrapper { display: flex; flex-direction: row; align-items: stretch; gap: 4px; }
+#canvas-container { position: relative; border: 1px solid #444; background: #000; }
+canvas { display: block; cursor: grab; }
+#minimap-canvas {
+    position: absolute; bottom: 6px; right: 6px;
+    border: 1px solid #666; cursor: pointer; image-rendering: pixelated;
+}
+#sim-canvas { image-rendering: pixelated; }
+.controls {
+    display: flex; flex-wrap: wrap; justify-content: center;
+    align-items: center; gap: 10px; margin: 6px 0;
+}
+.slider-group { display: flex; align-items: center; gap: 6px; }
+.slider-group label { font-size: 13px; white-space: nowrap; }
+.slider-group input[type=range] { width: 180px; accent-color: orangered; }
+.slider-group .val { font-size: 13px; color: orangered; min-width: 40px; }
+button {
+    padding: 6px 14px; font-size: 13px; font-weight: bold;
+    border: 1px solid #555; border-radius: 4px; cursor: pointer;
+    background: #333; color: #eee; transition: background 0.2s;
+}
+button:hover { background: #555; }
+button.active { background: #cc3300; border-color: #cc3300; }
+button.on { background: #2a7a2a; border-color: #2a7a2a; }
+#colorbar-box {
+    display: flex; flex-direction: row; align-items: stretch; padding: 4px 0;
+}
+#cb-canvas { width: 14px; border: 1px solid #444; border-radius: 2px; image-rendering: pixelated; }
+#cb-labels {
+    display: flex; flex-direction: column; justify-content: space-between;
+    margin-left: 3px; font-size: 9px; color: #aaa;
+}
+#cb-title {
+    writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
+    font-size: 10px; color: #aaa; margin-left: 2px;
+    display: flex; align-items: center; justify-content: center;
+}
+#zoom-controls {
+    position: absolute; top: 8px; left: 8px;
+    display: flex; flex-direction: column; gap: 4px; z-index: 5;
+}
+#zoom-controls button {
+    width: 32px; height: 32px; font-size: 20px; font-weight: bold;
+    background: rgba(50,50,50,0.8); color: #eee; border: 1px solid #666;
+    border-radius: 4px; cursor: pointer; display: flex;
+    align-items: center; justify-content: center; padding: 0;
+}
+#zoom-controls button:hover { background: rgba(100,100,100,0.9); }
+#loading-overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.85); display: flex; align-items: center;
+    justify-content: center; flex-direction: column; gap: 12px; z-index: 10;
+}
+#loading-overlay p { color: #eee; font-size: 15px; }
+#loading-bar-outer { width: 260px; height: 8px; background: #333; border-radius: 4px; }
+#loading-bar-inner { width: 0%; height: 100%; background: #cc3300; border-radius: 4px; transition: width 0.1s; }
+#hd-badge {
+    position: absolute; top: 8px; right: 8px; background: rgba(0,180,80,0.8);
+    color: #fff; font-size: 10px; font-weight: bold; padding: 2px 6px;
+    border-radius: 3px; display: none; z-index: 4;
+}
+</style>
+</head>
+<body>
+
+<h1>SIMUL_LAVE_2.5D 🌋 La Réunion</h1>
+<div style="margin:4px 0">
+  <button id="btn-mode" onclick="toggleMode()" style="
+    padding:5px 18px; font-size:13px; font-weight:bold; border-radius:20px;
+    border:2px solid #888; background:#222; color:#ccc; cursor:pointer;
+    letter-spacing:1px; transition:all 0.2s;">
+    → Passer en ACCÉLÉRÉ ⚡
+  </button>
+</div>
+<div id="info-bar" style="color:#aaa">Chargement de la carte…</div>
+
+<div id="sim-wrapper">
+  <div id="canvas-container">
+    <canvas id="sim-canvas"></canvas>
+    <canvas id="minimap-canvas" width="200" height="120"></canvas>
+    <div id="hd-badge">HD 5m</div>
+    <div id="mode-badge" style="
+        position:absolute; top:8px; right:48px; z-index:4;
+        background:rgba(0,140,60,0.85); color:#fff; font-size:11px;
+        font-weight:bold; padding:3px 8px; border-radius:3px;
+        letter-spacing:0.5px;">⏱ RÉALISTE</div>
+    <div id="zoom-controls">
+      <button id="btn-zoom-in" title="Zoom avant">+</button>
+      <button id="btn-zoom-out" title="Zoom arrière">&minus;</button>
+      <button id="btn-zoom-reset" title="Vue complète">&#8634;</button>
+    </div>
+    <div id="loading-overlay">
+      <p id="loading-msg">Chargement…</p>
+      <div id="loading-bar-outer"><div id="loading-bar-inner"></div></div>
+    </div>
+  </div>
+  <div id="colorbar-box" style="display:none">
+    <canvas id="cb-canvas" width="14" height="200"></canvas>
+    <div id="cb-labels"></div>
+    <div id="cb-title"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="slider-group">
+    <label>Débit (m³/s):</label>
+    <input type="range" id="sl-debit" min="1" max="1000" step="1" value="50">
+    <span class="val" id="val-debit">50</span>
+  </div>
+  <div class="slider-group">
+    <label>Vitesse sim:</label>
+    <input type="range" id="sl-vitesse" min="1" max="200" step="1" value="10">
+    <span class="val" id="val-vitesse">×3 réel</span>
+  </div>
+  <button id="btn-run">▶ Démarrer</button>
+  <button id="btn-reset">RESET</button>
+  <button id="btn-inj" class="on">INJ: ON</button>
+  <button id="btn-visu">ÉPAISS / TEMP</button>
+</div>
+<div id="coord-bar">Naviguez sur la carte — glissez les poignées A et B pour placer la fissure</div>
+
+<script>
+// =============================================
+//  CONFIG
+// =============================================
+const GRID     = 400;
+const DX       = 5.0;
+const DT       = 0.012;
+const RHO      = 2600, GG = 9.81;
+const DIFF     = 0.002;
+const BB_MARGIN = 20;
+// ── Modes de simulation ───────────────────────────────────────────────────────
+const MODES = {
+    realiste: { cfl: 3.0,  crust_k: 0.05, h_floor: 0.10 },
+    accelere: { cfl: 15.0, crust_k: 0.20, h_floor: 0.05 },
+};
+let sim_mode = 'realiste';
+function toggleMode() {
+    sim_mode = (sim_mode === 'realiste') ? 'accelere' : 'realiste';
+    const btn   = document.getElementById('btn-mode');
+    const badge = document.getElementById('mode-badge');
+    if (sim_mode === 'accelere') {
+        btn.textContent = '→ Passer en RÉALISTE ⏱';
+        btn.style.borderColor = '#cc3300'; btn.style.color = '#cc3300';
+        badge.textContent = '⚡ ACCÉLÉRÉ';
+        badge.style.background = 'rgba(180,60,0,0.85)';
+    } else {
+        btn.textContent = '→ Passer en ACCÉLÉRÉ ⚡';
+        btn.style.borderColor = '#888'; btn.style.color = '#ccc';
+        badge.textContent = '⏱ RÉALISTE';
+        badge.style.background = 'rgba(0,140,60,0.85)';
+    }
+}
+const CFL_CAP  = 3.0;  // valeur par défaut (RÉALISTE) — remplacé dynamiquement
+
+// ── Rhéologie Bingham (basalte Piton de la Fournaise) ────────────────────────
+// Valeurs calées sur la littérature Réunion (η ~100-300 Pa·s à 1200°C)
+// Avec le fix /DX dans la divergence, v = (h²/3η)*(pouss-τ0) donne 0.01-5 m/s pour h=0.1-1m ✓
+const ETA0   = 160;           // Pa·s — viscosité à 1200°C (basalte Réunion fluide)
+const ETA_B  = 0.009;         // coeff T
+const TAU0_0 = 110;           // Pa   — seuil d'écoulement à 1200°C
+const TAU0_B = 0.011;         // coeff T
+
+// ── Physique thermique ────────────────────────────────────────────────────────
+// Refroidissement radiatif : dT/dt = -ε·σ·(T⁴−Tamb⁴) / (ρ·h·cp)
+const CP_LAVA   = 1150;        // J/(kg·K) — chaleur spécifique lave basaltique
+const C_RAD     = 0.95 * 5.67e-8 / (RHO * CP_LAVA); // ε·σ/(ρ·cp) ≈ 1.80e-14
+const T_AMB_K4  = 293**4;      // Tamb⁴ en K⁴ (≈ 7.37e9)
+// Chaleur latente de cristallisation (entre liquidus 1050°C et solidus 800°C)
+const T_LIQUIDUS = 1050;       // °C — limite supérieure cristallisation
+const T_SOLIDUS  = 800;        // °C — solidification complète
+const L_FUSION   = 420000;     // J/kg — chaleur latente basalte
+// cp effectif dans la plage de cristallisation (ralentit le refroidissement ~2.5×)
+const CP_CRYST  = CP_LAVA + L_FUSION / (T_LIQUIDUS - T_SOLIDUS); // ≈ 2830 J/(kg·K)
+const C_RAD_CRYST = 0.95 * 5.67e-8 / (RHO * CP_CRYST);           // ≈ 7.32e-15
+const T_FLOOR   = 300;         // °C — plancher de température (lave figée)
+const CRUST_K   = 0.05;        // fraction surface active — calé CFL=0.5 m/s
+const FISSURE_WR_X = 400;
+const MAX_WR_W     = 32 * 200;
+const MAX_WR_H     = 40 * 200; // ~40 km N/S max
+const FRAME_MS     = 40;
+const HANDLE_HIT_PX = 18;
+let substeps = 10;
+
+const canvas = document.getElementById('sim-canvas');
+const ctx    = canvas.getContext('2d');
+const displaySize = Math.min(window.innerWidth - 90, window.innerHeight - 200, 680);
+canvas.width = displaySize; canvas.height = displaySize;
+const mm = document.getElementById('minimap-canvas');
+const mmCtx = mm.getContext('2d');
+
+// =============================================
+//  FISSURE EN COORDONNÉES GLOBALES (cellules 5m)
+//  Toujours synchronisées avec fissure_x0/y0/x1/y1 (WR-local) quand le WR est chargé
+// =============================================
+let fissure_gx0 = 0, fissure_gy0 = 0;
+let fissure_gx1 = 0, fissure_gy1 = 0;
+// WR-local (valides seulement après chargement du WR)
+let fissure_x0 = 0, fissure_y0 = 0;
+let fissure_x1 = 0, fissure_y1 = 0;
+
+// =============================================
+//  OVERVIEW VIEWPORT (cellules overview, 1 cellule ≈ 1 km)
+// =============================================
+let ovViewXmin = 0, ovViewXmax = 1, ovViewYmin = 0, ovViewYmax = 1;
+let ovDragState = null;
+let draggingHandle = null; // 'start' | 'end' | null
+
+// =============================================
+//  TERRAIN / WR
+// =============================================
+let virtualTerrain = null, virtualHillshd = null;
+let V_W = 0, V_H = 0, LIDAR_RES = 5.0;
+let win_vx0 = 0, win_vy0 = 0;
+
+let h = null, T = null, h_new = null, fx_sim = null, fy_sim = null;
+let lava_vx0 = 0, lava_vx1 = 0, lava_vy0 = 0, lava_vy1 = 0;
+let bb_refresh_counter = 0;
+
+// =============================================
+//  ÉTAT SIMULATION
+// =============================================
+let running          = false;
+let sim_started      = false;
+let injection_active = true;
+let mode_visu        = 'epaisseur';
+let step_count       = 0;
+let wrRelocating     = false;
+let animId           = null, lastFrameTime = 0, wrCheckCounter = 0;
+
+// =============================================
+//  INIT — charge le manifest uniquement (rapide)
+// =============================================
+async function initTerrain() {
+    const bar = document.getElementById('loading-bar-inner');
+    const msg = document.getElementById('loading-msg');
+    try {
+        msg.textContent = 'Chargement de la carte…';
+        bar.style.width = '30%';
+        await loadManifest();
+        bar.style.width = '100%';
+    } catch(e) {
+        msg.textContent = 'Erreur: ' + e.message;
+        return;
+    }
+    LIDAR_RES = CELL_RES;
+
+    // Fissure par défaut au Piton de la Fournaise
+    const ctr = findDefaultCenter();
+    fissure_gx0 = ctr.gx; fissure_gy0 = ctr.gy - 30;
+    fissure_gx1 = ctr.gx; fissure_gy1 = ctr.gy + 30;
+
+    // Vue initiale : île entière
+    ovViewXmin = 0; ovViewXmax = OV_W;
+    ovViewYmin = 0; ovViewYmax = OV_H;
+
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('info-bar').textContent =
+        '🗺 Glissez A et B pour placer la fissure — Molette pour zoomer — ▶ Démarrer pour lancer';
+
+    renderOverview();
+    precomputeMinimap();
+}
+
+// =============================================
+//  CHARGEMENT WR AUTOUR DE LA FISSURE
+// =============================================
+async function loadWRAroundFissure() {
+    const fxC = (fissure_gx0 + fissure_gx1) / 2;
+    const fyC = (fissure_gy0 + fissure_gy1) / 2;
+
+    const overlay = document.getElementById('loading-overlay');
+    const msg     = document.getElementById('loading-msg');
+    const bar     = document.getElementById('loading-bar-inner');
+    overlay.style.display = 'flex';
+    msg.textContent = 'Chargement des tuiles terrain HD…';
+    bar.style.width = '5%';
+
+    const WR_W_INIT = WR_TILES_W * TILE_SIZE;
+    await setupWorkingRegion(fxC + (WR_W_INIT / 2 - FISSURE_WR_X), fyC, p => {
+        bar.style.width = (5 + p * 90) + '%';
+    });
+
+    virtualTerrain = wrTerrain; virtualHillshd = wrHillshd;
+    V_W = WR_W; V_H = WR_H;
+
+    const n = V_W * V_H;
+    h      = new Float32Array(n);
+    T      = new Float32Array(n);
+    h_new  = new Float32Array(n);
+    fx_sim = new Float32Array(n);
+    fy_sim = new Float32Array(n);
+
+    win_vx0 = 0;
+    win_vy0 = Math.max(0, Math.floor((V_H - GRID) / 2));
+
+    syncFissureWRLocal();
+
+    computeContours();
+    precomputeMinimap();
+    document.getElementById('colorbar-box').style.display = 'flex';
+    drawColorbar();
+
+    overlay.style.display = 'none';
+    bar.style.width = '100%';
+}
+
+function syncFissureWRLocal() {
+    fissure_x0 = Math.max(2, Math.min(V_W-2, Math.round(fissure_gx0 - wr_gx0)));
+    fissure_y0 = Math.max(2, Math.min(V_H-2, Math.round(fissure_gy0 - wr_gy0)));
+    fissure_x1 = Math.max(2, Math.min(V_W-2, Math.round(fissure_gx1 - wr_gx0)));
+    fissure_y1 = Math.max(2, Math.min(V_H-2, Math.round(fissure_gy1 - wr_gy0)));
+}
+
+function fissureOutsideWR() {
+    if (!virtualTerrain) return true;
+    const m = 50;
+    return fissure_gx0 < wr_gx0 + m || fissure_gx0 >= wr_gx0 + V_W - m ||
+           fissure_gx1 < wr_gx0 + m || fissure_gx1 >= wr_gx0 + V_W - m ||
+           fissure_gy0 < wr_gy0 + m || fissure_gy0 >= wr_gy0 + V_H - m ||
+           fissure_gy1 < wr_gy0 + m || fissure_gy1 >= wr_gy0 + V_H - m;
+}
+
+// =============================================
+//  WR GROWTH
+// =============================================
+async function checkWRGrow() {
+    if (wrRelocating) return;
+    const needsRight = lava_vx1 > WR_W - WR_EXPAND_MARGIN;
+    const needsLeft  = lava_vx0 < WR_EXPAND_MARGIN;
+    const needsDown  = lava_vy0 < WR_EXPAND_MARGIN;
+    const needsUp    = lava_vy1 > WR_H - WR_EXPAND_MARGIN;
+    if (!needsRight && !needsLeft && !needsDown && !needsUp) return;
+    if (WR_W >= MAX_WR_W && WR_H >= MAX_WR_H) return;
+    wrRelocating = true;
+    try {
+        const OLD_W = WR_W, OLD_H = WR_H;
+        let shiftX = 0, shiftY = 0;
+
+        if (needsLeft  && WR_W < MAX_WR_W) shiftX = await growWorkingRegionLeft(8, null);
+        else if (needsRight && WR_W < MAX_WR_W) await growWorkingRegionRight(8, null);
+
+        if (needsDown  && WR_H < MAX_WR_H) shiftY = await growWorkingRegionDown(8, null);
+        else if (needsUp   && WR_H < MAX_WR_H) await growWorkingRegionUp(8, null);
+
+        const nTotal = WR_W * WR_H;
+        const nH = new Float32Array(nTotal), nT = new Float32Array(nTotal);
+        nT.fill(1200); // nouvelles cellules à 1200°C : tau0 minimal → la lave peut s'y écouler
+        const nHn = new Float32Array(nTotal), nFx = new Float32Array(nTotal), nFy = new Float32Array(nTotal);
+        for (let row = 0; row < OLD_H; row++) {
+            nH.set(h.subarray(row*OLD_W, (row+1)*OLD_W), (row+shiftY)*WR_W + shiftX);
+            nT.set(T.subarray(row*OLD_W, (row+1)*OLD_W), (row+shiftY)*WR_W + shiftX);
+        }
+        h = nH; T = nT; h_new = nHn; fx_sim = nFx; fy_sim = nFy;
+        if (shiftX > 0) {
+            fissure_x0 += shiftX; fissure_x1 += shiftX;
+            lava_vx0   += shiftX; lava_vx1   += shiftX;
+            win_vx0    += shiftX;
+        }
+        if (shiftY > 0) {
+            fissure_y0 += shiftY; fissure_y1 += shiftY;
+            lava_vy0   += shiftY; lava_vy1   += shiftY;
+            win_vy0    += shiftY;
+        }
+        V_W = WR_W; V_H = WR_H;
+        virtualTerrain = wrTerrain; virtualHillshd = wrHillshd;
+        computeContours(); precomputeMinimap();
+    } catch(e) { console.error('WR grow failed:', e); }
+    finally { wrRelocating = false; }
+}
+
+// =============================================
+//  PHYSIQUE
+// =============================================
+function getFissureCells() {
+    const cells = [];
+    let x = fissure_x0, y = fissure_y0;
+    const adx = Math.abs(fissure_x1-x), ady = Math.abs(fissure_y1-y);
+    const sx = x < fissure_x1 ? 1 : -1, sy = y < fissure_y1 ? 1 : -1;
+    let err = adx - ady;
+    while (true) {
+        if (x >= 1 && x < V_W-1 && y >= 1 && y < V_H-1) cells.push({x,y});
+        if (x === fissure_x1 && y === fissure_y1) break;
+        const e2 = 2*err;
+        if (e2 > -ady) { err -= ady; x += sx; }
+        if (e2 <  adx) { err += adx; y += sy; }
+    }
+    return cells;
+}
+
+function getFissureLengthM() {
+    return Math.sqrt(((fissure_gx1-fissure_gx0)*DX)**2 + ((fissure_gy1-fissure_gy0)*DX)**2);
+}
+
+function expandBB(vx, vy) {
+    if (vx-BB_MARGIN < lava_vx0) lava_vx0 = Math.max(1, vx-BB_MARGIN);
+    if (vx+BB_MARGIN > lava_vx1) lava_vx1 = Math.min(V_W-2, vx+BB_MARGIN);
+    if (vy-BB_MARGIN < lava_vy0) lava_vy0 = Math.max(1, vy-BB_MARGIN);
+    if (vy+BB_MARGIN > lava_vy1) lava_vy1 = Math.min(V_H-2, vy+BB_MARGIN);
+}
+
+function refreshBB() {
+    let x0=V_W,x1=0,y0=V_H,y1=0,found=false;
+    for (let vy=0;vy<V_H;vy+=3) for (let vx=0;vx<V_W;vx+=3) {
+        if (h[vy*V_W+vx]>0.05) {
+            if(vx<x0)x0=vx; if(vx>x1)x1=vx; if(vy<y0)y0=vy; if(vy>y1)y1=vy; found=true;
+        }
+    }
+    const fxMin=Math.min(fissure_x0,fissure_x1), fxMax=Math.max(fissure_x0,fissure_x1);
+    const fyMin=Math.min(fissure_y0,fissure_y1), fyMax=Math.max(fissure_y0,fissure_y1);
+    if (!found) { x0=fxMin-2;x1=fxMax+2;y0=fyMin;y1=fyMax; }
+    else {
+        if(fxMin-2<x0)x0=fxMin-2; if(fxMax+2>x1)x1=fxMax+2;
+        if(fyMin<y0)y0=fyMin; if(fyMax>y1)y1=fyMax;
+    }
+    lava_vx0=Math.max(1,x0-BB_MARGIN); lava_vx1=Math.min(V_W-2,x1+BB_MARGIN);
+    lava_vy0=Math.max(1,y0-BB_MARGIN); lava_vy1=Math.min(V_H-2,y1+BB_MARGIN);
+}
+
+function resetSim() {
+    if (h)     h.fill(0);
+    if (T)     T.fill(1200);
+    if (h_new) h_new.fill(0);
+    if (fx_sim) fx_sim.fill(0);
+    if (fy_sim) fy_sim.fill(0);
+    step_count = 0; bb_refresh_counter = 0;
+    manualZoom = false; autoZoomScale = 1.0;
+    // Centre la vue sur la fissure
+    const fxC = (fissure_x0 + fissure_x1) / 2 - win_vx0;
+    const fyC = (fissure_y0 + fissure_y1) / 2 - win_vy0;
+    const half = GRID / 2;
+    viewXmin = fxC - half; viewXmax = fxC + half;
+    viewYmin = fyC - half; viewYmax = fyC + half;
+    lava_vx0 = Math.max(1, Math.min(fissure_x0,fissure_x1)-BB_MARGIN);
+    lava_vx1 = Math.min(V_W-2, Math.max(fissure_x0,fissure_x1)+BB_MARGIN);
+    lava_vy0 = Math.max(1, Math.min(fissure_y0,fissure_y1)-BB_MARGIN);
+    lava_vy1 = Math.min(V_H-2, Math.max(fissure_y0,fissure_y1)+BB_MARGIN);
+}
+
+function stepSimulation(debit) {
+    const W=V_W, H=V_H;
+    // Injection
+    if (injection_active) {
+        const cells = getFissureCells(), n = cells.length;
+        if (n > 0) {
+            const inj = debit * DT / (n * DX * DX);
+            for (let i=0;i<n;i++) {
+                const {x,y} = cells[i];
+                if (x<0||x>=W||y<0||y>=H) continue;
+                const idx = y*W+x; h[idx]+=inj; T[idx]=1200;
+            }
+            expandBB(cells[0].x, cells[0].y);
+            expandBB(cells[n-1].x, cells[n-1].y);
+        }
+    }
+    bb_refresh_counter++;
+    if (bb_refresh_counter >= 50) { refreshBB(); bb_refresh_counter=0; }
+
+    let hmax=0;
+    for (let vy=lava_vy0;vy<=lava_vy1;vy+=5)
+        for (let vx=lava_vx0;vx<=lava_vx1;vx+=5) { const hi=h[vy*W+vx]; if(hi>hmax)hmax=hi; }
+    if (hmax<0.01) { step_count++; return; }
+
+    const bx0=Math.max(1,lava_vx0), bx1=Math.min(W-2,lava_vx1);
+    const by0=Math.max(1,lava_vy0), by1=Math.min(H-2,lava_vy1);
+
+    // ── ÉTAPE 1 : Refroidissement radiatif AVANT le flux ─────────────────────
+    // La T refroidie alimente directement tau0/eta au pas suivant (couplage fort).
+    for (let vy=by0;vy<=by1;vy++) for (let vx=bx0;vx<=bx1;vx++) {
+        const idx=vy*W+vx;
+        const hi=h[idx];
+        if (hi<0.01) continue;
+        let Ti=T[idx];
+        // Stefan-Boltzmann : dT/dt = -ε·σ·(T⁴−Tamb⁴) / (ρ·h·cp_eff)
+        const T_K=Ti+273;
+        const Q_net=T_K*T_K*T_K*T_K - T_AMB_K4;
+        const c_rad=(Ti>=T_SOLIDUS&&Ti<=T_LIQUIDUS) ? C_RAD_CRYST : C_RAD;
+        const {crust_k, h_floor} = MODES[sim_mode];
+        Ti -= crust_k * c_rad * Q_net * DT / Math.max(hi, h_floor);
+        T[idx]=Math.max(T_FLOOR, Math.min(1300, Ti));
+    }
+
+    // ── ÉTAPE 2 : Calcul des flux (utilise la T déjà refroidie) ──────────────
+    for (let vy=by0;vy<=by1;vy++) for (let vx=bx0;vx<=bx1;vx++) {
+        const idx=vy*W+vx, hi=h[idx];
+        if (hi<0.01) { fx_sim[idx]=0; fy_sim[idx]=0; continue; }
+        const Hr=virtualTerrain[idx+1]+h[idx+1], Hl=virtualTerrain[idx-1]+h[idx-1];
+        const Hu=virtualTerrain[(vy+1)*W+vx]+h[(vy+1)*W+vx];
+        const Hd=virtualTerrain[(vy-1)*W+vx]+h[(vy-1)*W+vx];
+        const gx=(Hr-Hl)/(2*DX), gy=(Hu-Hd)/(2*DX);
+        const slope=Math.sqrt(gx*gx+gy*gy);
+        const Ti=T[idx];
+        const tau0=TAU0_0*Math.exp(TAU0_B*(1200-Ti));
+        const eta=ETA0*Math.exp(ETA_B*(1200-Ti));
+        const pouss=RHO*GG*hi*slope;
+        if (pouss>tau0) {
+            const v=Math.min((hi*hi/(3*eta))*(pouss-tau0), MODES[sim_mode].cfl);
+            const ss=slope>0?slope:1;
+            fx_sim[idx]=-(gx/ss)*v*hi; fy_sim[idx]=-(gy/ss)*v*hi;
+        } else { fx_sim[idx]=0; fy_sim[idx]=0; }
+    }
+
+    // ── ÉTAPE 3 : Divergence → h_new (divergence correctement divisée par DX) ─
+    for (let vy=by0;vy<=by1;vy++) for (let vx=bx0;vx<=bx1;vx++) {
+        const idx=vy*W+vx;
+        const dfx=(fx_sim[idx+1]-fx_sim[idx-1])/(2*DX);
+        const dfy=(fy_sim[(vy+1)*W+vx]-fy_sim[(vy-1)*W+vx])/(2*DX);
+        const lap=h[idx+1]+h[idx-1]+h[(vy+1)*W+vx]+h[(vy-1)*W+vx]-4*h[idx];
+        h_new[idx]=Math.max(0,Math.min(15,h[idx]-DT*(dfx+dfy)+DIFF*lap));
+    }
+    for (let vx=0;vx<W;vx++) {
+        h_new[vx]=0; h_new[W+vx]=0; h_new[2*W+vx]=0;
+        h_new[(H-1)*W+vx]=0; h_new[(H-2)*W+vx]=0; h_new[(H-3)*W+vx]=0;
+    }
+    if (WR_W>=MAX_WR_W) for (let vy=0;vy<H;vy++) {
+        h_new[vy*W]=0; h_new[vy*W+1]=0; h_new[vy*W+2]=0;
+        h_new[vy*W+W-1]=0; h_new[vy*W+W-2]=0; h_new[vy*W+W-3]=0;
+    }
+
+    // ── ÉTAPE 4 : Advection de chaleur + copie h_new→h ───────────────────────
+    for (let vy=by0;vy<=by1;vy++) for (let vx=bx0;vx<=bx1;vx++) {
+        const idx=vy*W+vx;
+        const hi_old=h[idx];
+        const hi_new=h_new[idx];
+        h[idx]=hi_new;
+        if (hi_new<0.01) continue;
+
+        if (hi_old>0.01) {
+            let Ti=T[idx];
+            const in_w=Math.max( fx_sim[idx-1],       0)*DT;
+            const in_e=Math.max(-fx_sim[idx],          0)*DT;
+            const in_s=Math.max( fy_sim[(vy-1)*W+vx], 0)*DT;
+            const in_n=Math.max(-fy_sim[(vy+1)*W+vx], 0)*DT;
+            const vol_in=in_w+in_e+in_s+in_n;
+            if (vol_in>0.0005) {
+                const T_in=(in_w*T[idx-1]+in_e*T[idx+1]+
+                            in_s*T[(vy-1)*W+vx]+in_n*T[(vy+1)*W+vx])/vol_in;
+                Ti+=vol_in*(T_in-Ti)/Math.max(hi_new,0.01);
+                T[idx]=Math.max(T_FLOOR, Math.min(1300, Ti));
+            }
+        }
+
+        if (vx<=lava_vx0+2||vx>=lava_vx1-2||vy<=lava_vy0+2||vy>=lava_vy1-2) expandBB(vx,vy);
+    }
+    step_count++;
+}
+
+// =============================================
+//  RENDU — helpers
+// =============================================
+const bilerp = (a00,a10,a01,a11,tx,ty) =>
+    (1-ty)*((1-tx)*a00+tx*a10)+ty*((1-tx)*a01+tx*a11);
+
+function terrainColor(alt, hs) {
+    if (alt <= 0) return [20, 30, 60];
+    const t = Math.max(0, Math.min(1, (alt-ALT_MIN_GLOBAL)/(ALT_MAX_GLOBAL-ALT_MIN_GLOBAL)));
+    return [Math.floor(hs*(80+t*100)), Math.floor(hs*(60+t*80)), Math.floor(hs*(40+t*60))];
+}
+
+// =============================================
+//  RENDU — OVERVIEW (tuiles HD si disponibles)
+// =============================================
+let tileFetchTimer = null;
+function scheduleTileFetch() {
+    if (tileFetchTimer) clearTimeout(tileFetchTimer);
+    tileFetchTimer = setTimeout(fetchVisibleTiles, 400);
+}
+
+async function fetchVisibleTiles() {
+    if (!MANIFEST) return;
+    const ovW = ovViewXmax - ovViewXmin;
+    if (ovW > 35) return; // trop dézoomé, inutile
+    const gx0 = Math.floor(ovViewXmin * TILE_SIZE), gx1 = Math.ceil(ovViewXmax * TILE_SIZE);
+    const gy0 = Math.floor(ovViewYmin * TILE_SIZE), gy1 = Math.ceil(ovViewYmax * TILE_SIZE);
+    const te0=Math.floor(gx0/TILE_SIZE)+MIN_E_KM, te1=Math.floor(gx1/TILE_SIZE)+MIN_E_KM;
+    const tn0=Math.floor(gy0/TILE_SIZE)+MIN_N_KM, tn1=Math.floor(gy1/TILE_SIZE)+MIN_N_KM;
+    const toFetch=[];
+    for (let te=te0;te<=te1;te++) for (let tn=tn0;tn<=tn1;tn++) {
+        const key=`${te}_${tn}`;
+        if (MANIFEST.tiles[key] && !tileCache.has(key)) toFetch.push({key,te,tn});
+    }
+    if (!toFetch.length) return;
+    await Promise.all(toFetch.map(t=>fetchTile(t.key).catch(()=>null)));
+    if (!running) renderOverview(); // rafraîchit une fois les tuiles chargées
+}
+
+function renderOverview() {
+    const W=canvas.width, H=canvas.height;
+    const img=ctx.createImageData(W,H); const pd=img.data;
+    const ovW=ovViewXmax-ovViewXmin, ovH=ovViewYmax-ovViewYmin;
+    let hdVisible = false;
+
+    for (let py=0;py<H;py++) for (let qx=0;qx<W;qx++) {
+        const ox = ovViewXmin+(qx/W)*ovW;
+        const oy = ovViewYmin+((H-1-py)/H)*ovH;
+        const gxF = ox*TILE_SIZE, gyF = oy*TILE_SIZE;
+        const gxi = Math.floor(gxF), gyi = Math.floor(gyF);
+
+        let alt=0, hs=0.5;
+        const te=Math.floor(gxi/TILE_SIZE)+MIN_E_KM;
+        const tn=Math.floor(gyi/TILE_SIZE)+MIN_N_KM;
+        const tile = MANIFEST && MANIFEST.tiles[`${te}_${tn}`] ? tileCache.get(`${te}_${tn}`) : null;
+
+        if (tile) {
+            hdVisible = true;
+            const tlxF = gxF-(te-MIN_E_KM)*TILE_SIZE, tlyF = gyF-(tn-MIN_N_KM)*TILE_SIZE;
+            const tlxi=Math.floor(tlxF), tlyi=Math.floor(tlyF);
+            const tlxi1=Math.min(tlxi+1,TILE_SIZE-1), tlyi1=Math.min(tlyi+1,TILE_SIZE-1);
+            const tx=tlxF-tlxi, ty=tlyF-tlyi;
+            const j00=tlyi*TILE_SIZE+tlxi, j10=tlyi*TILE_SIZE+tlxi1;
+            const j01=tlyi1*TILE_SIZE+tlxi, j11=tlyi1*TILE_SIZE+tlxi1;
+            alt=bilerp(tile.terrain[j00],tile.terrain[j10],tile.terrain[j01],tile.terrain[j11],tx,ty);
+            hs =bilerp(tile.hillshade[j00],tile.hillshade[j10],tile.hillshade[j01],tile.hillshade[j11],tx,ty);
+        } else {
+            const oxi=Math.max(0,Math.min(OV_W-1,Math.floor(ox)));
+            const oyi=Math.max(0,Math.min(OV_H-1,Math.floor(oy)));
+            const oxi1=Math.min(oxi+1,OV_W-1), oyi1=Math.min(oyi+1,OV_H-1);
+            const tx=ox-Math.floor(ox), ty=oy-Math.floor(oy);
+            const i00=oyi*OV_W+oxi,i10=oyi*OV_W+oxi1,i01=oyi1*OV_W+oxi,i11=oyi1*OV_W+oxi1;
+            alt=bilerp(overviewTerrain[i00]||0,overviewTerrain[i10]||0,overviewTerrain[i01]||0,overviewTerrain[i11]||0,tx,ty);
+            hs =bilerp(overviewHillshd[i00]||.5,overviewHillshd[i10]||.5,overviewHillshd[i01]||.5,overviewHillshd[i11]||.5,tx,ty);
+        }
+
+        const [r,g,b]=terrainColor(alt,hs);
+        const pi=(py*W+qx)*4; pd[pi]=r;pd[pi+1]=g;pd[pi+2]=b;pd[pi+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+    document.getElementById('hd-badge').style.display = hdVisible ? 'block' : 'none';
+
+    drawOverviewContours();
+    drawFissureOnOverview();
+
+    if (ovW <= 35) scheduleTileFetch();
+}
+
+function drawOverviewContours() {
+    if (!overviewTerrain) return;
+    const W=canvas.width, H=canvas.height;
+    const ovW=ovViewXmax-ovViewXmin, ovH=ovViewYmax-ovViewYmin;
+    const ox0=Math.max(0,Math.floor(ovViewXmin)-1), ox1=Math.min(OV_W-1,Math.ceil(ovViewXmax)+1);
+    const oy0=Math.max(0,Math.floor(ovViewYmin)-1), oy1=Math.min(OV_H-1,Math.ceil(ovViewYmax)+1);
+    let zMin=Infinity,zMax=-Infinity;
+    for (let oy=oy0;oy<=oy1;oy++) for (let ox=ox0;ox<=ox1;ox++) {
+        const z=overviewTerrain[oy*OV_W+ox]||0;
+        if(z>0){if(z<zMin)zMin=z;if(z>zMax)zMax=z;}
+    }
+    if (zMin>=zMax) return;
+    const cStep=ovW<5?100:ovW<15?200:500;
+    const toX=ox=>(ox-ovViewXmin)/ovW*W, toY=oy=>(1-(oy-ovViewYmin)/ovH)*H;
+    ctx.save();
+    for (let level=Math.ceil(zMin/cStep)*cStep;level<=zMax;level+=cStep) {
+        const segs=[];
+        for (let oy=oy0;oy<oy1;oy++) for (let ox=ox0;ox<ox1;ox++) {
+            const z00=overviewTerrain[oy*OV_W+ox]||0, z10=overviewTerrain[oy*OV_W+ox+1]||0;
+            const z01=overviewTerrain[(oy+1)*OV_W+ox]||0, z11=overviewTerrain[(oy+1)*OV_W+ox+1]||0;
+            if(z00<=0&&z10<=0&&z01<=0&&z11<=0) continue;
+            let code=0;
+            if(z00>=level)code|=1; if(z10>=level)code|=2; if(z11>=level)code|=4; if(z01>=level)code|=8;
+            if(code===0||code===15) continue;
+            const I=(za,zb,a,b)=>{const t=Math.abs(zb-za)<.001?.5:(level-za)/(zb-za);return[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];};
+            const eB=()=>I(z00,z10,[ox,oy],[ox+1,oy]), eR=()=>I(z10,z11,[ox+1,oy],[ox+1,oy+1]);
+            const eT=()=>I(z01,z11,[ox,oy+1],[ox+1,oy+1]), eL=()=>I(z00,z01,[ox,oy],[ox,oy+1]);
+            const A=(a,b)=>segs.push([a,b]);
+            switch(code){case 1:case 14:A(eB(),eL());break;case 2:case 13:A(eB(),eR());break;
+            case 3:case 12:A(eL(),eR());break;case 4:case 11:A(eR(),eT());break;
+            case 5:A(eB(),eR());A(eL(),eT());break;case 6:case 9:A(eB(),eT());break;
+            case 7:case 8:A(eL(),eT());break;case 10:A(eB(),eL());A(eR(),eT());break;}
+        }
+        const maj=level%1000===0;
+        ctx.strokeStyle=maj?'rgba(255,255,255,0.55)':'rgba(255,255,255,0.28)';
+        ctx.lineWidth=maj?1.2:0.7;
+        for (const [s0,s1] of segs) { ctx.beginPath();ctx.moveTo(toX(s0[0]),toY(s0[1]));ctx.lineTo(toX(s1[0]),toY(s1[1]));ctx.stroke(); }
+        if (maj && segs.length>3) {
+            const [s0,s1]=segs[Math.floor(segs.length*.3)];
+            const lx=toX((s0[0]+s1[0])/2),ly=toY((s0[1]+s1[1])/2);
+            if(lx>20&&lx<W-40&&ly>10&&ly<H-10){ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='9px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(level+' m',lx,ly);}
+        }
+    }
+    ctx.restore();
+}
+
+function getOverviewFissurePixels() {
+    const W=canvas.width,H=canvas.height;
+    const ovW=ovViewXmax-ovViewXmin,ovH=ovViewYmax-ovViewYmin;
+    const toX=gx=>((gx/TILE_SIZE)-ovViewXmin)/ovW*W;
+    const toY=gy=>(1-((gy/TILE_SIZE)-ovViewYmin)/ovH)*H;
+    return {px0:toX(fissure_gx0),py0:toY(fissure_gy0),px1:toX(fissure_gx1),py1:toY(fissure_gy1)};
+}
+
+function drawFissureOnOverview() {
+    const {px0,py0,px1,py1}=getOverviewFissurePixels();
+    const lenM=getFissureLengthM().toFixed(0);
+    ctx.save();
+    ctx.strokeStyle='rgba(255,100,0,0.9)';ctx.lineWidth=3;ctx.setLineDash([10,5]);
+    ctx.beginPath();ctx.moveTo(px0,py0);ctx.lineTo(px1,py1);ctx.stroke();ctx.setLineDash([]);
+    const mx=(px0+px1)/2,my=(py0+py1)/2;
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(mx-30,my-10,60,20);
+    ctx.fillStyle='#ffd700';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(lenM+' m',mx,my);
+    drawHandle(px0,py0,'A',draggingHandle==='start','gold');
+    drawHandle(px1,py1,'B',draggingHandle==='end','red');
+    ctx.restore();
+}
+
+function drawHandle(px,py,label,active,color) {
+    ctx.beginPath();ctx.arc(px,py,13,0,Math.PI*2);
+    ctx.strokeStyle=color==='gold'?'rgba(255,220,0,0.35)':'rgba(255,60,0,0.35)';ctx.lineWidth=6;ctx.stroke();
+    ctx.fillStyle=active?(color==='gold'?'#ffe000':'#ff6060'):(color==='gold'?'rgba(255,200,0,0.95)':'rgba(255,50,0,0.95)');
+    ctx.strokeStyle='#fff';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(px,py,9,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle=color==='gold'?'#000':'#fff';ctx.font='bold 10px Arial';
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(label,px,py);
+}
+
+// =============================================
+//  RENDU SIMULATION
+// =============================================
+let viewXmin=0,viewXmax=GRID,viewYmin=0,viewYmax=GRID;
+let contourPaths=[],lastVisuMode='',minimapData=null;
+let manualZoom=false,autoZoomScale=1.0;
+let _cvX=null,_cvXx=null,_cvY=null,_cvYy=null;
+function _contourViewChanged(){if(_cvX===null)return true;return Math.abs(viewXmin-_cvX)>10||Math.abs(viewXmax-_cvXx)>10||Math.abs(viewYmin-_cvY)>10||Math.abs(viewYmax-_cvYy)>10;}
+function _markCV(){_cvX=viewXmin;_cvXx=viewXmax;_cvY=viewYmin;_cvYy=viewYmax;}
+
+function computeContours() {
+    contourPaths=[]; _markCV();
+    const viewW=viewXmax-viewXmin;
+    const useHD=viewW<=canvas.width*4;
+    const ixS=Math.max(-win_vx0,Math.floor(viewXmin)-1), ixE=Math.min(V_W-1-win_vx0,Math.ceil(viewXmax)+1);
+    const iyS=Math.max(-win_vy0,Math.floor(viewYmin)-1), iyE=Math.min(V_H-1-win_vy0,Math.ceil(viewYmax)+1);
+    if (useHD && ixE>ixS && iyE>iyS) {
+        let zMin=Infinity,zMax=-Infinity;
+        for (let iy=iyS;iy<=iyE;iy++){const vy=win_vy0+iy;if(vy<0||vy>=V_H)continue;for(let ix=ixS;ix<=ixE;ix++){const vx=win_vx0+ix;if(vx<0||vx>=V_W)continue;const z=virtualTerrain[vy*V_W+vx];if(z<zMin)zMin=z;if(z>zMax)zMax=z;}}
+        if (zMin<zMax) {
+            const cStep=100,start=Math.ceil(zMin/cStep)*cStep;
+            for (let level=start;level<=zMax;level+=cStep) {
+                const segs=[];
+                for (let iy=iyS;iy<iyE;iy++){const vy=win_vy0+iy;if(vy<0||vy+1>=V_H)continue;
+                    for (let ix=ixS;ix<ixE;ix++){const vx=win_vx0+ix;if(vx<0||vx+1>=V_W)continue;
+                        const z00=virtualTerrain[vy*V_W+vx],z10=virtualTerrain[vy*V_W+vx+1];
+                        const z01=virtualTerrain[(vy+1)*V_W+vx],z11=virtualTerrain[(vy+1)*V_W+vx+1];
+                        let code=0;if(z00>=level)code|=1;if(z10>=level)code|=2;if(z11>=level)code|=4;if(z01>=level)code|=8;
+                        if(code===0||code===15)continue;
+                        const I=(za,zb,a,b)=>{if(Math.abs(zb-za)<.0001)return[(a[0]+b[0])/2,(a[1]+b[1])/2];const t=(level-za)/(zb-za);return[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];};
+                        const eB=()=>I(z00,z10,[ix,iy],[ix+1,iy]),eR=()=>I(z10,z11,[ix+1,iy],[ix+1,iy+1]);
+                        const eT=()=>I(z01,z11,[ix,iy+1],[ix+1,iy+1]),eL=()=>I(z00,z01,[ix,iy],[ix,iy+1]);
+                        const A=(a,b)=>segs.push([a,b]);
+                        switch(code){case 1:case 14:A(eB(),eL());break;case 2:case 13:A(eB(),eR());break;case 3:case 12:A(eL(),eR());break;case 4:case 11:A(eR(),eT());break;case 5:A(eB(),eR());A(eL(),eT());break;case 6:case 9:A(eB(),eT());break;case 7:case 8:A(eL(),eT());break;case 10:A(eB(),eL());A(eR(),eT());break;}
+                    }
+                }
+                contourPaths.push({level,segs});
+            }
+        }
+    }
+    if (!overviewTerrain) return;
+    const toOx=gx=>(wr_gx0+win_vx0+gx)/TILE_SIZE, toOy=gy=>(wr_gy0+win_vy0+gy)/TILE_SIZE;
+    const ox0=Math.max(0,Math.floor(toOx(viewXmin))-1), ox1=Math.min(OV_W-1,Math.ceil(toOx(viewXmax))+1);
+    const oy0=Math.max(0,Math.floor(toOy(viewYmin))-1), oy1=Math.min(OV_H-1,Math.ceil(toOy(viewYmax))+1);
+    if(ox1<=ox0||oy1<=oy0)return;
+    let ozMin=Infinity,ozMax=-Infinity;
+    for(let oy=oy0;oy<=oy1;oy++)for(let ox=ox0;ox<=ox1;ox++){const z=overviewTerrain[oy*OV_W+ox];if(z>0){if(z<ozMin)ozMin=z;if(z>ozMax)ozMax=z;}}
+    if(ozMin>=ozMax)return;
+    const ovCStep=500,ovStart=Math.ceil(ozMin/ovCStep)*ovCStep;
+    for (let level=ovStart;level<=ozMax;level+=ovCStep) {
+        const segs=[];
+        for(let oy=oy0;oy<oy1;oy++)for(let ox=ox0;ox<ox1;ox++){
+            const toDx=o=>o*TILE_SIZE-wr_gx0-win_vx0, toDy=o=>o*TILE_SIZE-wr_gy0-win_vy0;
+            const z00=overviewTerrain[oy*OV_W+ox]||0,z10=overviewTerrain[oy*OV_W+ox+1]||0;
+            const z01=overviewTerrain[(oy+1)*OV_W+ox]||0,z11=overviewTerrain[(oy+1)*OV_W+ox+1]||0;
+            if(z00<=0&&z10<=0&&z01<=0&&z11<=0)continue;
+            let code=0;if(z00>=level)code|=1;if(z10>=level)code|=2;if(z11>=level)code|=4;if(z01>=level)code|=8;
+            if(code===0||code===15)continue;
+            const dx00=toDx(ox),dy00=toDy(oy),dx10=toDx(ox+1),dy10=toDy(oy);
+            const dx01=toDx(ox),dy01=toDy(oy+1),dx11=toDx(ox+1),dy11=toDy(oy+1);
+            const I=(za,zb,a,b)=>{if(Math.abs(zb-za)<.0001)return[(a[0]+b[0])/2,(a[1]+b[1])/2];const t=(level-za)/(zb-za);return[a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];};
+            const eB=()=>I(z00,z10,[dx00,dy00],[dx10,dy10]),eR=()=>I(z10,z11,[dx10,dy10],[dx11,dy11]);
+            const eT=()=>I(z01,z11,[dx01,dy01],[dx11,dy11]),eL=()=>I(z00,z01,[dx00,dy00],[dx01,dy01]);
+            const A=(a,b)=>segs.push([a,b]);
+            switch(code){case 1:case 14:A(eB(),eL());break;case 2:case 13:A(eB(),eR());break;case 3:case 12:A(eL(),eR());break;case 4:case 11:A(eR(),eT());break;case 5:A(eB(),eR());A(eL(),eT());break;case 6:case 9:A(eB(),eT());break;case 7:case 8:A(eL(),eT());break;case 10:A(eB(),eL());A(eR(),eT());break;}
+        }
+        if(segs.length)contourPaths.push({level,segs});
+    }
+}
+
+function magma(t){
+    // Lava colormap: bright orange-red at thin depths → yellow-white at thick
+    t=Math.max(0,Math.min(1,t));
+    const r=255;
+    const g=Math.min(255,Math.floor(t<0.4?t*2.5*180:180+(t-0.4)*1.25*75));
+    const b=Math.min(255,Math.floor(t<0.5?t*2*60:60+(t-0.5)*2*195));
+    return[r,g,b];
+}
+function hotCmap(t){t=Math.max(0,Math.min(1,t));if(t<.375)return[Math.floor(t/.375*255),0,0];if(t<.75)return[255,Math.floor((t-.375)/.375*255),0];return[255,255,Math.floor((t-.75)/.25*255)];}
+
+function render() {
+    if (!virtualTerrain) { renderOverview(); return; }
+    const W=canvas.width,H=canvas.height;
+    const img=ctx.createImageData(W,H); const px=img.data;
+    const vw=viewXmax-viewXmin,vh=viewYmax-viewYmin;
+    for (let py=0;py<H;py++) for (let qx=0;qx<W;qx++) {
+        const gx=viewXmin+(qx/W)*vw, gy=viewYmin+((H-1-py)/H)*vh;
+        const vrx=win_vx0+gx, vry=win_vy0+gy;
+        const vx0=Math.floor(vrx), vy0=Math.floor(vry);
+        const pi=(py*W+qx)*4;
+        let tr,tg,tb;
+        if (vx0>=0&&vx0<V_W&&vy0>=0&&vy0<V_H) {
+            const vx1=Math.min(vx0+1,V_W-1),vy1=Math.min(vy0+1,V_H-1);
+            const tx=vrx-vx0,ty=vry-vy0;
+            const i00=vy0*V_W+vx0,i10=vy0*V_W+vx1,i01=vy1*V_W+vx0,i11=vy1*V_W+vx1;
+            const hs=bilerp(virtualHillshd[i00],virtualHillshd[i10],virtualHillshd[i01],virtualHillshd[i11],tx,ty);
+            const zv=bilerp(virtualTerrain[i00],virtualTerrain[i10],virtualTerrain[i01],virtualTerrain[i11],tx,ty);
+            [tr,tg,tb]=terrainColor(zv,hs);
+            const hi=h[i00], alpha=Math.min(hi/0.1,1);
+            if (alpha>0.005) {
+                const [lr,lg,lb]=mode_visu==='epaisseur'?magma(Math.min(hi/5,1)):hotCmap((T[i00]-300)/900);
+                tr=Math.floor(tr*(1-alpha)+lr*alpha); tg=Math.floor(tg*(1-alpha)+lg*alpha); tb=Math.floor(tb*(1-alpha)+lb*alpha);
+            }
+        } else if (overviewTerrain) {
+            const gx_g=wr_gx0+vx0, gy_g=wr_gy0+vy0;
+            if (gx_g<0||gy_g<0||gx_g>=GLOBAL_W||gy_g>=GLOBAL_H){tr=20;tg=30;tb=50;}
+            else {
+                const te=Math.floor(gx_g/TILE_SIZE)+MIN_E_KM, tn=Math.floor(gy_g/TILE_SIZE)+MIN_N_KM;
+                const ct=tileCache.get(`${te}_${tn}`);
+                if (ct) {
+                    const tlx=gx_g-(te-MIN_E_KM)*TILE_SIZE, tly=gy_g-(tn-MIN_N_KM)*TILE_SIZE;
+                    const tx2=vrx-vx0,ty2=vry-vy0;
+                    const tlx1=Math.min(tlx+1,TILE_SIZE-1),tly1=Math.min(tly+1,TILE_SIZE-1);
+                    const j00=tly*TILE_SIZE+tlx,j10=tly*TILE_SIZE+tlx1,j01=tly1*TILE_SIZE+tlx,j11=tly1*TILE_SIZE+tlx1;
+                    const hs=bilerp(ct.hillshade[j00],ct.hillshade[j10],ct.hillshade[j01],ct.hillshade[j11],tx2,ty2);
+                    const alt=bilerp(ct.terrain[j00],ct.terrain[j10],ct.terrain[j01],ct.terrain[j11],tx2,ty2);
+                    [tr,tg,tb]=terrainColor(alt,hs);
+                } else {
+                    const ox=Math.floor(gx_g/TILE_SIZE),oy=Math.floor(gy_g/TILE_SIZE);
+                    if(ox>=0&&ox<OV_W&&oy>=0&&oy<OV_H){
+                        const ox1=Math.min(ox+1,OV_W-1),oy1=Math.min(oy+1,OV_H-1);
+                        const otx=(gx_g%TILE_SIZE)/TILE_SIZE,oty=(gy_g%TILE_SIZE)/TILE_SIZE;
+                        const hs=bilerp(overviewHillshd[oy*OV_W+ox]||.5,overviewHillshd[oy*OV_W+ox1]||.5,overviewHillshd[oy1*OV_W+ox]||.5,overviewHillshd[oy1*OV_W+ox1]||.5,otx,oty);
+                        const alt=bilerp(overviewTerrain[oy*OV_W+ox]||0,overviewTerrain[oy*OV_W+ox1]||0,overviewTerrain[oy1*OV_W+ox]||0,overviewTerrain[oy1*OV_W+ox1]||0,otx,oty);
+                        [tr,tg,tb]=terrainColor(alt,hs);
+                    } else {tr=10;tg=10;tb=10;}
+                }
+            }
+        } else {tr=17;tg=17;tb=17;}
+        px[pi]=tr;px[pi+1]=tg;px[pi+2]=tb;px[pi+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+
+    // Courbes de niveau
+    const vw2=viewXmax-viewXmin,vh2=viewYmax-viewYmin;
+    ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=0.7;
+    for (const cp of contourPaths) for (const [s0,s1] of cp.segs) {
+        const x1=(s0[0]-viewXmin)/vw2*W,y1=(1-(s0[1]-viewYmin)/vh2)*H;
+        const x2=(s1[0]-viewXmin)/vw2*W,y2=(1-(s1[1]-viewYmin)/vh2)*H;
+        if(x1<-60||x1>W+60)continue;
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    }
+    ctx.font='9px Arial';ctx.fillStyle='rgba(255,255,255,0.65)';
+    for (let i=0;i<contourPaths.length;i+=2){
+        const cp=contourPaths[i]; if(cp.segs.length<5)continue;
+        const [s0,s1]=cp.segs[Math.floor(cp.segs.length/3)];
+        const mx=((s0[0]+s1[0])/2-viewXmin)/vw2*W, my=(1-((s0[1]+s1[1])/2-viewYmin)/vh2)*H;
+        if(mx>20&&mx<W-60&&my>10&&my<H-10)ctx.fillText(cp.level+' m',mx,my);
+    }
+
+    // Fissure en mode simulation
+    const fhp=getSimFissurePixels();
+    ctx.save();
+    ctx.strokeStyle='rgba(255,100,0,0.92)';ctx.lineWidth=3;ctx.setLineDash([10,5]);
+    ctx.beginPath();ctx.moveTo(fhp.px0,fhp.py0);ctx.lineTo(fhp.px1,fhp.py1);ctx.stroke();ctx.setLineDash([]);
+    const lenM=getFissureLengthM().toFixed(0);
+    const mx=(fhp.px0+fhp.px1)/2,my=(fhp.py0+fhp.py1)/2;
+    ctx.fillStyle='rgba(0,0,0,0.65)';ctx.fillRect(mx-28,my-9,56,18);
+    ctx.fillStyle='rgba(255,210,0,1)';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(lenM+' m',mx,my);
+    drawHandle(fhp.px0,fhp.py0,'A',draggingHandle==='start','gold');
+    drawHandle(fhp.px1,fhp.py1,'B',draggingHandle==='end','red');
+    ctx.restore();
+
+    if (mode_visu!==lastVisuMode){drawColorbar();lastVisuMode=mode_visu;}
+    updateAutoZoom();
+    updateMinimap();
+    updateInfoBar();
+}
+
+function getSimFissurePixels() {
+    const W=canvas.width,H=canvas.height;
+    const vw=viewXmax-viewXmin,vh=viewYmax-viewYmin;
+    const toX=v=>(v-viewXmin)/vw*W, toY=v=>(1-(v-viewYmin)/vh)*H;
+    return {
+        px0:toX(fissure_x0-win_vx0),py0:toY(fissure_y0-win_vy0),
+        px1:toX(fissure_x1-win_vx0),py1:toY(fissure_y1-win_vy0)
+    };
+}
+
+// =============================================
+//  AUTO-ZOOM (suit la coulée jusqu'à 30+ km)
+// =============================================
+function updateAutoZoom() {
+    if (manualZoom) return;
+    const fxMin=Math.min(fissure_x0,fissure_x1)-win_vx0;
+    const fxMax=Math.max(fissure_x0,fissure_x1)-win_vx0;
+    const fyMin=Math.min(fissure_y0,fissure_y1)-win_vy0;
+    const fyMax=Math.max(fissure_y0,fissure_y1)-win_vy0;
+    const dx0=Math.min(fxMin,lava_vx0-win_vx0), dx1=Math.max(fxMax,lava_vx1-win_vx0);
+    const dy0=Math.min(fyMin,lava_vy0-win_vy0), dy1=Math.max(fyMax,lava_vy1-win_vy0);
+    const span=Math.max(dx1-dx0,dy1-dy0,GRID/2);
+    const m=Math.max(GRID/4,span*0.12)*autoZoomScale;
+    const txMin=Math.max(-win_vx0,dx0-m), txMax=dx1+m;
+    const tyMin=dy0-m, tyMax=dy1+m;
+    viewXmin=Math.min(viewXmin,txMin); viewXmax=Math.max(viewXmax,txMax);
+    viewYmin=Math.min(viewYmin,tyMin); viewYmax=Math.max(viewYmax,tyMax);
+    const vw=viewXmax-viewXmin,vh=viewYmax-viewYmin;
+    if(vw>vh){const mid=(viewYmin+viewYmax)/2;viewYmin=mid-vw/2;viewYmax=mid+vw/2;}
+    else if(vh>vw){viewXmax=viewXmin+vh;}
+    if(_contourViewChanged())computeContours();
+}
+
+function updateInfoBar() {
+    if (!virtualTerrain) return;
+    const bar=document.getElementById('info-bar');
+    let active=0,mobile=0,sumT=0;
+    for(let vy=lava_vy0;vy<=lava_vy1;vy+=2){if(vy<1||vy>=V_H-1)continue;
+        for(let vx=lava_vx0;vx<=lava_vx1;vx+=2){if(vx<1||vx>=V_W-1)continue;
+            const idx=vy*V_W+vx;
+            if(h[idx]>0.1){active++;sumT+=T[idx];const hi=h[idx],Ti=T[idx];
+                const Hr=virtualTerrain[idx+1]+h[idx+1],Hl=virtualTerrain[idx-1]+h[idx-1];
+                const Hu=virtualTerrain[(vy+1)*V_W+vx]+h[(vy+1)*V_W+vx],Hd=virtualTerrain[(vy-1)*V_W+vx]+h[(vy-1)*V_W+vx];
+                const slope=Math.sqrt(((Hr-Hl)/(2*DX))**2+((Hu-Hd)/(2*DX))**2);
+                if(RHO*GG*hi*slope>110*Math.exp(0.011*(1200-Ti)))mobile++;}
+        }
+    }
+    const dist=((lava_vx1-Math.min(fissure_x0,fissure_x1))*DX/1000).toFixed(1);
+    if (active>0) {
+        const Tm=sumT/active,pct=100*mobile/active;
+        let etat,col;
+        if(pct<2){etat='FIGÉE';col='cyan';}else if(pct<30){etat=`Ralentit (${pct.toFixed(0)}% mob.)`;col='orange';}else{etat=`Active (${pct.toFixed(0)}% mob.)`;col='red';}
+        bar.style.color=col;
+        const debitStr = injection_active ? `${document.getElementById('sl-debit').value} m³/s` : `0 m³/s (INJ OFF)`;
+        bar.textContent=`Débit: ${debitStr} | Fissure: ${getFissureLengthM().toFixed(0)}m | Front: ${dist}km | T: ${Tm.toFixed(0)}°C | ${etat} | t=${(step_count*DT).toFixed(0)}s`;
+    } else {
+        bar.style.color='gray';
+        bar.textContent=`Pas de lave — t=${(step_count*DT).toFixed(0)}s | pas ${step_count}`;
+    }
+}
+
+function drawColorbar() {
+    const cbc=document.getElementById('cb-canvas'); cbc.height=canvas.height;
+    const cctx=cbc.getContext('2d');
+    for(let py=0;py<cbc.height;py++){const t=1-py/(cbc.height-1);const[r,g,b]=mode_visu==='epaisseur'?magma(t):hotCmap(t);cctx.fillStyle=`rgb(${r},${g},${b})`;cctx.fillRect(0,py,18,1);}
+    const lD=document.getElementById('cb-labels'),tD=document.getElementById('cb-title');
+    if(mode_visu==='epaisseur'){lD.innerHTML='<span>5 m</span><span>4</span><span>3</span><span>2</span><span>1</span><span>0</span>';tD.textContent='Épaisseur (m)';}
+    else{lD.innerHTML='<span>1200</span><span>1000</span><span>800</span><span>600</span><span>400</span><span>300</span>';tD.textContent='Température (°C)';}
+}
+
+function precomputeMinimap() {
+    if(!overviewTerrain)return;
+    const MW=mm.width,MH=mm.height;
+    minimapData=mmCtx.createImageData(MW,MH);const pd=minimapData.data;
+    for(let py=0;py<MH;py++)for(let px2=0;px2<MW;px2++){
+        const ox=Math.floor(px2/MW*OV_W),oyi=Math.floor((MH-1-py)/MH*OV_H);
+        const oi=oyi*OV_W+ox,alt=overviewTerrain[oi]||0,hs=overviewHillshd[oi]||.5;
+        const pi=(py*MW+px2)*4;
+        const[r,g,b]=terrainColor(alt,hs);pd[pi]=r;pd[pi+1]=g;pd[pi+2]=b;pd[pi+3]=255;
+    }
+    updateMinimap();
+}
+
+function updateMinimap() {
+    if(!minimapData)return;
+    const MW=mm.width,MH=mm.height;
+    mmCtx.putImageData(minimapData,0,0);
+    if (!virtualTerrain) {
+        // Affiche la position de la fissure sur la minimap en mode overview
+        const f0px=(fissure_gx0/TILE_SIZE)/OV_W*MW, f0py=(1-(fissure_gy0/TILE_SIZE)/OV_H)*MH;
+        mmCtx.fillStyle='rgba(255,200,0,0.9)';
+        mmCtx.beginPath();mmCtx.arc(f0px,f0py,3,0,Math.PI*2);mmCtx.fill();
+        return;
+    }
+    const wr_px=wr_gx0/TILE_SIZE/OV_W*MW, wr_py=(1-(wr_gy0/TILE_SIZE+WR_H/TILE_SIZE)/OV_H)*MH;
+    const wr_pw=WR_W/TILE_SIZE/OV_W*MW, wr_ph=WR_H/TILE_SIZE/OV_H*MH;
+    mmCtx.strokeStyle='rgba(0,200,255,0.7)';mmCtx.lineWidth=1;mmCtx.strokeRect(wr_px,wr_py,wr_pw,wr_ph);
+    const vg0x=wr_gx0+win_vx0+viewXmin,vg0y=wr_gy0+win_vy0+viewYmin;
+    const vg1x=wr_gx0+win_vx0+viewXmax,vg1y=wr_gy0+win_vy0+viewYmax;
+    const wp=vg0x/TILE_SIZE/OV_W*MW, wq=(1-vg1y/TILE_SIZE/OV_H)*MH;
+    const ww=(vg1x-vg0x)/TILE_SIZE/OV_W*MW, wh=(vg1y-vg0y)/TILE_SIZE/OV_H*MH;
+    mmCtx.strokeStyle='rgba(255,50,50,0.9)';mmCtx.lineWidth=1.5;mmCtx.strokeRect(wp,wq,ww,wh);
+    const f0px=(fissure_gx0/TILE_SIZE)/OV_W*MW, f0py=(1-(fissure_gy0/TILE_SIZE)/OV_H)*MH;
+    const f1px=(fissure_gx1/TILE_SIZE)/OV_W*MW, f1py=(1-(fissure_gy1/TILE_SIZE)/OV_H)*MH;
+    mmCtx.strokeStyle='rgba(255,150,0,0.9)';mmCtx.lineWidth=2;
+    mmCtx.beginPath();mmCtx.moveTo(f0px,f0py);mmCtx.lineTo(f1px,f1py);mmCtx.stroke();
+    mmCtx.fillStyle='rgba(255,200,0,0.9)';mmCtx.beginPath();mmCtx.arc(f0px,f0py,2,0,Math.PI*2);mmCtx.fill();
+}
+
+// =============================================
+//  BOUCLE PRINCIPALE
+// =============================================
+function mainLoop(ts) {
+    if (!running) return;
+    if (ts-lastFrameTime>=FRAME_MS) {
+        const debit=parseInt(document.getElementById('sl-debit').value);
+        for(let s=0;s<substeps;s++) stepSimulation(debit);
+        wrCheckCounter++; if(wrCheckCounter>=20){wrCheckCounter=0;checkWRGrow();}
+        render(); lastFrameTime=ts;
+    }
+    animId=requestAnimationFrame(mainLoop);
+}
+
+// =============================================
+//  EVENEMENTS CANVAS
+// =============================================
+let dragState=null;
+const DRAG_THRESHOLD=5;
+
+function pixelToGrid(px,py){
+    const W=canvas.width,H=canvas.height,vw=viewXmax-viewXmin,vh=viewYmax-viewYmin;
+    return{gx:viewXmin+(px/W)*vw,gy:viewYmin+((H-1-py)/H)*vh};
+}
+
+function overviewCanvasToGlobal(cpx,cpy){
+    const W=canvas.width,H=canvas.height;
+    const ovW=ovViewXmax-ovViewXmin,ovH=ovViewYmax-ovViewYmin;
+    return{gx:Math.round((ovViewXmin+(cpx/W)*ovW)*TILE_SIZE),gy:Math.round((ovViewYmin+((H-1-cpy)/H)*ovH)*TILE_SIZE)};
+}
+
+function getActiveHandlePixels() {
+    return virtualTerrain ? getSimFissurePixels() : getOverviewFissurePixels();
+}
+
+canvas.addEventListener('mousedown', e => {
+    if(e.button!==0)return;
+    const rect=canvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const hp=getActiveHandlePixels();
+    const d0=Math.hypot(px-hp.px0,py-hp.py0), d1=Math.hypot(px-hp.px1,py-hp.py1);
+    if(d0<HANDLE_HIT_PX){draggingHandle='start';canvas.style.cursor='grabbing';return;}
+    if(d1<HANDLE_HIT_PX){draggingHandle='end';canvas.style.cursor='grabbing';return;}
+
+    if(!virtualTerrain){
+        ovDragState={startClientX:e.clientX,startClientY:e.clientY,
+            startXmin:ovViewXmin,startXmax:ovViewXmax,startYmin:ovViewYmin,startYmax:ovViewYmax};
+    } else {
+        dragState={startClientX:e.clientX,startClientY:e.clientY,
+            startViewXmin:viewXmin,startViewXmax:viewXmax,startViewYmin:viewYmin,startViewYmax:viewYmax,dragged:false};
+    }
+    canvas.style.cursor='grabbing';
+});
+
+canvas.addEventListener('mousemove', e => {
+    const rect=canvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+
+    if(draggingHandle) {
+        if(!virtualTerrain) {
+            const{gx,gy}=overviewCanvasToGlobal(px,py);
+            if(draggingHandle==='start'){fissure_gx0=gx;fissure_gy0=gy;}
+            else{fissure_gx1=gx;fissure_gy1=gy;}
+            updateInfoBarOverview();
+            renderOverview();
+        } else {
+            const{gx,gy}=pixelToGrid(px,py);
+            const vx=Math.max(2,Math.min(V_W-2,win_vx0+Math.round(gx)));
+            const vy=Math.max(2,Math.min(V_H-2,win_vy0+Math.round(gy)));
+            if(draggingHandle==='start'){fissure_x0=vx;fissure_y0=vy;fissure_gx0=vx+wr_gx0;fissure_gy0=vy+wr_gy0;}
+            else{fissure_x1=vx;fissure_y1=vy;fissure_gx1=vx+wr_gx0;fissure_gy1=vy+wr_gy0;}
+            render();
+        }
+        return;
+    }
+
+    if(!virtualTerrain && ovDragState && e.buttons&1){
+        const W=canvas.width,H=canvas.height;
+        const dx=e.clientX-ovDragState.startClientX, dy=e.clientY-ovDragState.startClientY;
+        const ovW=ovDragState.startXmax-ovDragState.startXmin, ovH=ovDragState.startYmax-ovDragState.startYmin;
+        let xMin=ovDragState.startXmin-(dx/W)*ovW, yMin=ovDragState.startYmin+(dy/H)*ovH;
+        let xMax=xMin+ovW, yMax=yMin+ovH;
+        if(xMax>OV_W){xMin-=xMax-OV_W;xMax=OV_W;} if(xMin<0){xMax-=xMin;xMin=0;}
+        if(yMax>OV_H){yMin-=yMax-OV_H;yMax=OV_H;} if(yMin<0){yMax-=yMin;yMin=0;}
+        ovViewXmin=xMin;ovViewXmax=xMax;ovViewYmin=yMin;ovViewYmax=yMax;
+        renderOverview(); return;
+    }
+
+    if(virtualTerrain && dragState && e.buttons&1){
+        const dx=e.clientX-dragState.startClientX, dy=e.clientY-dragState.startClientY;
+        if(Math.abs(dx)>DRAG_THRESHOLD||Math.abs(dy)>DRAG_THRESHOLD){
+            dragState.dragged=true;manualZoom=true;
+            const W=canvas.width,H=canvas.height;
+            const vw=dragState.startViewXmax-dragState.startViewXmin, vh=dragState.startViewYmax-dragState.startViewYmin;
+            viewXmin=dragState.startViewXmin-(dx/W)*vw; viewXmax=dragState.startViewXmax-(dx/W)*vw;
+            viewYmin=dragState.startViewYmin+(dy/H)*vh; viewYmax=dragState.startViewYmax+(dy/H)*vh;
+            render(); canvas.style.cursor='grabbing';
+        }
+        return;
+    }
+
+    // Curseur selon proximité poignées
+    const hp=getActiveHandlePixels();
+    const d0=Math.hypot(px-hp.px0,py-hp.py0), d1=Math.hypot(px-hp.px1,py-hp.py1);
+    canvas.style.cursor=(d0<HANDLE_HIT_PX||d1<HANDLE_HIT_PX)?'grab':'grab';
+
+    // Coordonnées UTM au survol (sim mode)
+    if(virtualTerrain){
+        const{gx,gy}=pixelToGrid(px,py);
+        const vx=win_vx0+Math.floor(gx),vy=win_vy0+Math.floor(gy);
+        if(vx>=0&&vx<V_W&&vy>=0&&vy<V_H){
+            const E=GLOBAL_MIN_E+(wr_gx0+vx)*LIDAR_RES, N=GLOBAL_MIN_N+(wr_gy0+vy)*LIDAR_RES;
+            const alt=virtualTerrain[vy*V_W+vx];
+            document.getElementById('coord-bar').textContent=`E: ${(E/1000).toFixed(3)} km  |  N: ${(N/1000).toFixed(3)} km  |  Alt: ${alt.toFixed(0)} m`;
+        }
+    }
+});
+
+canvas.addEventListener('mouseup', e => {
+    if(draggingHandle){draggingHandle=null;canvas.style.cursor='grab';if(!running&&virtualTerrain)render();return;}
+    if(ovDragState){ovDragState=null;canvas.style.cursor='grab';return;}
+    if(dragState){
+        if(dragState.dragged){computeContours();if(!running)render();}
+        dragState=null;canvas.style.cursor='grab';
+    }
+});
+
+canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const px=e.clientX-rect.left, py=e.clientY-rect.top;
+    const step=e.ctrlKey?0.3:0.15;
+    const factor=e.deltaY>0?1+step:1/(1+step);
+    if(!virtualTerrain){applyOverviewZoom(factor,px,py);}
+    else{applyZoom(factor,px,py);}
+},{passive:false});
+
+canvas.addEventListener('dblclick', e=>{
+    e.preventDefault();
+    if(!virtualTerrain){ovViewXmin=0;ovViewXmax=OV_W;ovViewYmin=0;ovViewYmax=OV_H;renderOverview();}
+    else{manualZoom=false;autoZoomScale=1.0;updateAutoZoom();render();}
+});
+
+canvas.addEventListener('gesturestart',e=>e.preventDefault(),{passive:false});
+canvas.addEventListener('gesturechange',e=>{
+    e.preventDefault();
+    if(!virtualTerrain)applyOverviewZoom(1/e.scale,canvas.width/2,canvas.height/2);
+    else applyZoom(1/e.scale,canvas.width/2,canvas.height/2);
+},{passive:false});
+
+mm.addEventListener('click', async e=>{
+    if(!MANIFEST||wrRelocating||!virtualTerrain)return;
+    const rect=mm.getBoundingClientRect();
+    const px=e.clientX-rect.left,py=e.clientY-rect.top;
+    const gx=Math.floor(px/mm.width*OV_W)*TILE_SIZE+TILE_SIZE/2;
+    const gy=Math.floor((1-py/mm.height)*OV_H)*TILE_SIZE+TILE_SIZE/2;
+    const wrLX=gx-wr_gx0,wrLY=gy-wr_gy0;
+    if(wrLX>=0&&wrLX<WR_W&&wrLY>=0&&wrLY<WR_H){
+        win_vx0=Math.max(0,Math.min(V_W-GRID,wrLX-GRID/2));
+        win_vy0=Math.max(0,Math.min(V_H-GRID,wrLY-GRID/2));
+        computeContours();updateMinimap();if(!running)render();return;
+    }
+    // Relocaliser WR
+    wrRelocating=true;
+    const wasRunning=running;
+    if(running){running=false;if(animId)cancelAnimationFrame(animId);}
+    const overlay=document.getElementById('loading-overlay');
+    overlay.style.display='flex';
+    document.getElementById('loading-msg').textContent='Chargement de la nouvelle zone…';
+    document.getElementById('loading-bar-inner').style.width='0%';
+    await setupWorkingRegion(gx,gy,p=>{document.getElementById('loading-bar-inner').style.width=(p*100)+'%';});
+    virtualTerrain=wrTerrain;virtualHillshd=wrHillshd;V_W=WR_W;V_H=WR_H;
+    const n2=V_W*V_H;h=new Float32Array(n2);T=new Float32Array(n2);h_new=new Float32Array(n2);fx_sim=new Float32Array(n2);fy_sim=new Float32Array(n2);
+    win_vx0=0;win_vy0=Math.max(0,Math.floor((V_H-GRID)/2));
+    syncFissureWRLocal();resetSim();computeContours();precomputeMinimap();render();
+    overlay.style.display='none';wrRelocating=false;
+    if(wasRunning){running=true;animId=requestAnimationFrame(mainLoop);}
+});
+
+// =============================================
+//  ZOOM HELPERS
+// =============================================
+function applyOverviewZoom(factor,cpx,cpy){
+    const W=canvas.width,H=canvas.height,ovW=ovViewXmax-ovViewXmin,ovH=ovViewYmax-ovViewYmin;
+    const cx=ovViewXmin+(cpx/W)*ovW, cy=ovViewYmin+((H-1-cpy)/H)*ovH;
+    const nW=Math.max(1,Math.min(OV_W,ovW*factor)), nH=Math.max(1,Math.min(OV_H,ovH*factor));
+    const rx=(cx-ovViewXmin)/ovW, ry=(cy-ovViewYmin)/ovH;
+    ovViewXmin=cx-rx*nW; ovViewXmax=ovViewXmin+nW;
+    ovViewYmin=cy-ry*nH; ovViewYmax=ovViewYmin+nH;
+    if(ovViewXmax>OV_W){ovViewXmin-=ovViewXmax-OV_W;ovViewXmax=OV_W;}
+    if(ovViewYmax>OV_H){ovViewYmin-=ovViewYmax-OV_H;ovViewYmax=OV_H;}
+    if(ovViewXmin<0){ovViewXmax-=ovViewXmin;ovViewXmin=0;}
+    if(ovViewYmin<0){ovViewYmax-=ovViewYmin;ovViewYmin=0;}
+    renderOverview();
+}
+
+function applyZoom(factor,cpx,cpy){
+    manualZoom=true;
+    const W=canvas.width,H=canvas.height,vw=viewXmax-viewXmin,vh=viewYmax-viewYmin;
+    let cx,cy;
+    if(cpx!==undefined){const g=pixelToGrid(cpx,cpy);cx=g.gx;cy=g.gy;}
+    else{cx=(viewXmin+viewXmax)/2;cy=(viewYmin+viewYmax)/2;}
+    const nW=Math.max(20,Math.min(15000,vw*factor)), nH=Math.max(20,Math.min(15000,vh*factor));
+    const rx=(cx-viewXmin)/vw, ry=(cy-viewYmin)/vh;
+    viewXmin=cx-rx*nW;viewXmax=cx+(1-rx)*nW;
+    viewYmin=cy-ry*nH;viewYmax=cy+(1-ry)*nH;
+    computeContours();render();
+}
+
+document.getElementById('btn-zoom-in').addEventListener('click',e=>{e.stopPropagation();
+    if(!virtualTerrain){applyOverviewZoom(1/1.4,canvas.width/2,canvas.height/2);}
+    else if(!manualZoom){autoZoomScale=Math.max(0.3,autoZoomScale/1.5);updateAutoZoom();render();}
+    else applyZoom(1/1.4);});
+document.getElementById('btn-zoom-out').addEventListener('click',e=>{e.stopPropagation();
+    if(!virtualTerrain){applyOverviewZoom(1.4,canvas.width/2,canvas.height/2);}
+    else if(!manualZoom){autoZoomScale=Math.min(50,autoZoomScale*1.5);updateAutoZoom();render();}
+    else applyZoom(1.4);});
+document.getElementById('btn-zoom-reset').addEventListener('click',e=>{e.stopPropagation();
+    if(!virtualTerrain){ovViewXmin=0;ovViewXmax=OV_W;ovViewYmin=0;ovViewYmax=OV_H;renderOverview();}
+    else{manualZoom=false;autoZoomScale=1.0;updateAutoZoom();render();}});
+
+// =============================================
+//  BOUTONS SIMULATION
+// =============================================
+function updateInfoBarOverview() {
+    const lenM=getFissureLengthM().toFixed(0);
+    document.getElementById('info-bar').textContent=
+        `🌋 Fissure: ${lenM} m — Glissez A/B pour repositionner — ▶ Démarrer pour lancer la coulée`;
+    document.getElementById('info-bar').style.color='#aaa';
+}
+
+document.getElementById('sl-debit').addEventListener('input',e=>{document.getElementById('val-debit').textContent=e.target.value;});
+document.getElementById('sl-vitesse').addEventListener('input',e=>{
+    substeps=parseInt(e.target.value);
+    document.getElementById('val-vitesse').textContent='×'+(substeps*DT/(FRAME_MS/1000)).toFixed(1)+' réel';
+});
+
+document.getElementById('btn-run').addEventListener('click', async () => {
+    const btn=document.getElementById('btn-run');
+    if(running){
+        running=false;if(animId)cancelAnimationFrame(animId);
+        btn.textContent='▶ Reprendre';btn.classList.remove('active');return;
+    }
+    // Reprendre après pause — ne pas réinitialiser
+    if(sim_started){
+        running=true;btn.textContent='⏸ Pause';btn.classList.add('active');
+        animId=requestAnimationFrame(mainLoop);
+        return;
+    }
+    // Premier démarrage
+    if(fissureOutsideWR()){
+        btn.textContent='Chargement…';btn.disabled=true;
+        await loadWRAroundFissure();
+        btn.disabled=false;
+    }
+    syncFissureWRLocal();
+    resetSim();
+    sim_started=true;
+    lastVisuMode='';drawColorbar();
+    computeContours();precomputeMinimap();
+    render();
+    running=true;btn.textContent='⏸ Pause';btn.classList.add('active');
+    animId=requestAnimationFrame(mainLoop);
+    document.getElementById('info-bar').style.color='red';
+});
+
+document.getElementById('btn-reset').addEventListener('click',()=>{
+    if(animId)cancelAnimationFrame(animId);running=false;sim_started=false;
+    const btn=document.getElementById('btn-run');btn.textContent='▶ Démarrer';btn.classList.remove('active');
+    if(virtualTerrain){syncFissureWRLocal();resetSim();render();}
+});
+
+document.getElementById('btn-inj').addEventListener('click',()=>{
+    injection_active=!injection_active;
+    const btn=document.getElementById('btn-inj');
+    btn.textContent=injection_active?'INJ: ON':'INJ: OFF';
+    if(injection_active)btn.classList.add('on');else btn.classList.remove('on');
+});
+
+document.getElementById('btn-visu').addEventListener('click',()=>{
+    mode_visu=mode_visu==='epaisseur'?'temperature':'epaisseur';
+    document.getElementById('btn-visu').textContent=mode_visu==='epaisseur'?'ÉPAISS / TEMP':'TEMP / ÉPAISS';
+    if(!running)render();
+});
+
+document.addEventListener('keydown',e=>{
+    if(!virtualTerrain)return;
+    const step=100;
+    if(e.key==='ArrowRight'){win_vx0=Math.max(0,Math.min(V_W-GRID,win_vx0+step));computeContours();updateMinimap();if(!running)render();}
+    if(e.key==='ArrowLeft') {win_vx0=Math.max(0,Math.min(V_W-GRID,win_vx0-step));computeContours();updateMinimap();if(!running)render();}
+    if(e.key==='ArrowUp')   {win_vy0=Math.max(0,Math.min(V_H-GRID,win_vy0+step));computeContours();updateMinimap();if(!running)render();}
+    if(e.key==='ArrowDown') {win_vy0=Math.max(0,Math.min(V_H-GRID,win_vy0-step));computeContours();updateMinimap();if(!running)render();}
+});
+
+// =============================================
+//  LANCEMENT
+// =============================================
+initTerrain();
+</script>
+</body>
+</html>
