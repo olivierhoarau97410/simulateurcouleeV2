@@ -19,7 +19,6 @@ lidar-viewer-reunion-v2.html
 lidar_viewer_reunion.html
 paleosealevel.html
 terrain_lidar.js
-tile_loader.js
 preprocess_lidar.py
 transects_lidar_reunion.py
 batch_simulations.py
