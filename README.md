@@ -1,4 +1,5 @@
 # SIMUL_LAVE_2.5D 🌋
+
 ### Simulateur de coulée de lave sur le relief réel de La Réunion
 
 Simulation d'écoulement de lave basaltique en 2.5D, basée sur la physique Navier-Stokes (rhéologie de Bingham) et le refroidissement radiatif (Stefan-Boltzmann), appliquée sur les données **LiDAR HD IGN à 5 m de résolution** du Piton de la Fournaise.
@@ -9,93 +10,147 @@ Le simulateur tourne entièrement dans le navigateur web — sans installation l
 
 ## Captures d'écran
 
-| Vue température | Vue épaisseur |
-|---|---|
+| Vue température                                    | Vue épaisseur              |
+| -------------------------------------------------- | -------------------------- |
 | Gradient blanc→jaune→orange de la fissure au front | Chenaux et levées naturels |
 
 ---
 
 ## Prérequis
 
-| Élément | Détail |
-|---|---|
-| Python 3 | `python3 --version` — sinon téléchargez sur [python.org](https://python.org) |
-| Navigateur | Chrome, Firefox, Safari ou Edge (version récente) |
-| Espace disque | ~900 Mo pour les tuiles terrain pré-calculées |
+| Élément       | Détail                                                                       |
+| ------------- | ---------------------------------------------------------------------------- |
+| Python 3      | `python3 --version` — sinon téléchargez sur [python.org](https://python.org) |
+| Navigateur    | Chrome, Firefox, Safari ou Edge (version récente)                            |
+| Espace disque | ~900 Mo pour les tuiles terrain pré-calculées                                |
 
 ---
 
-## Installation
+## 🛠️ INSTALLATION
 
-### 1. Cloner le dépôt
+> Suivez ces 3 étapes dans l'ordre. Comptez environ **10 minutes** pour tout mettre en place.
+
+### Étape 1 — Cloner le dépôt
+
+Ouvrez un terminal et tapez :
 
 ```bash
 git clone https://github.com/olivierhoarau97410/simulateurcouleeV2.git
 cd simulateurcouleeV2
 ```
 
-### 2. Télécharger les tuiles terrain
+> 💡 Si vous n'avez pas Git, téléchargez l'archive ZIP depuis le bouton vert **Code → Download ZIP** sur cette page, puis décompressez-la.
 
-Les tuiles terrain (~860 Mo) ne sont pas dans le dépôt Git. Téléchargez **`tiles_terrain.zip`** depuis la section [Releases](https://github.com/olivierhoarau97410/simulateurcouleeV2/releases) et décompressez-le dans le dossier du projet :
+---
+
+### Étape 2 — Télécharger les tuiles terrain
+
+Les tuiles terrain (~860 Mo) ne sont **pas incluses** dans le dépôt Git car elles sont trop volumineuses.
+
+1. Rendez-vous dans la section [**Releases**](https://github.com/olivierhoarau97410/simulateurcouleeV2/releases)
+2. Téléchargez le fichier **`tiles_terrain.zip`**
+3. Décompressez-le dans le dossier du projet, de sorte à obtenir cette structure :
 
 ```
 simulateurcouleeV2/
 └── tiles/
-    └── terrain/      ← décompressez tiles_terrain.zip ici
+    └── terrain/      ← contenu de tiles_terrain.zip
         ├── 313_7668.bin
         ├── 313_7668_hs.bin
-        └── …  (~5500 fichiers)
+        └── …  (~5500 fichiers .bin)
 ```
 
-> ⚠️ Sans ces tuiles, la carte reste noire au démarrage.
+> ⚠️ **Sans ces tuiles, la carte reste noire au démarrage.** C'est la cause n°1 des problèmes.
 
-### 3. Lancer le simulateur
+---
+
+### Étape 3 — Lancer le simulateur
 
 **Mac / Linux :**
+
 ```bash
 bash start_simulation.sh
 ```
 
 **Windows :**
+
 ```bash
 python -m http.server 8765
 ```
-Puis ouvrez : `http://localhost:8765/simul_lave_25d_v2.html`
+
+Puis ouvrez votre navigateur à l'adresse :
+
+```
+http://localhost:8765/simul_lave_25d_v2.html
+```
+
+> ⚠️ N'ouvrez **pas** le fichier `.html` par double-clic — cela ne fonctionne pas. Vous devez passer par `http://localhost:8765/...`
 
 ---
 
-## Utilisation
+## 🚀 PRISE EN MAIN TRÈS SIMPLIFIÉE DU SIMULATEUR
 
-### Premiers pas
-1. Cliquez **▶ Démarrer** — le simulateur charge les tuiles terrain autour de la fissure
-2. La lave commence à couler vers le Grand Brûlé (côte est)
-3. Naviguez : **cliquez-glissez** pour déplacer, **molette** pour zoomer
-4. Déplacez les poignées **A** et **B** pour repositionner la fissure
+Vous n'avez besoin de rien connaître à la physique pour commencer. Voici l'essentiel en 4 actions.
 
-### Contrôles
+### 1. Lancer la simulation
 
-| Bouton / Curseur | Effet |
-|---|---|
-| ▶ Démarrer | Lance la simulation (premier départ) |
-| ⏸ Pause | Suspend le calcul — la lave reste en place |
-| ▶ Reprendre | Continue exactement où on s'était arrêté |
-| ■ Reset | Remet la lave à zéro |
-| INJ: ON/OFF | Active ou coupe l'arrivée de lave à la fissure |
-| Débit (m³/s) | De 10 (filet mince) à 500 (nappe massive) |
-| TEMP / ÉPAISS | Bascule entre vue Température et vue Épaisseur |
+Cliquez sur **▶ Démarrer**.
 
-### Deux modes de simulation
+La lave commence à couler depuis la fissure éruptive vers le Grand Brûlé (côte est). Les tuiles du terrain se chargent automatiquement.
 
-| Mode | Vitesse max | Refroidissement | Usage |
-|---|---|---|---|
-| ⏱ RÉALISTE | 3 m/s | Lent (5%) | Observer chenaux, levées, figeage |
-| ⚡ ACCÉLÉRÉ | 15 m/s | Rapide (20%) | Voir en quelques minutes ce qui prendrait des heures |
+---
 
-### Ce que vous observez
-- **Blanc → jaune → orange** : gradient de température de la fissure (1200°C) vers le front (~800°C)
-- **Chenaux** : la lave suit naturellement les ravines du terrain LiDAR
-- **Levées** : les bords minces refroidissent et figent, canalisant le flux central
-- **Dôme sur terrain plat** : comportement physiquement correct (pas de pente = pas d'écoulement)
+### 2. Se déplacer sur la carte
+
+| Action          | Résultat                    |
+| --------------- | --------------------------- |
+| Cliquer-glisser | Déplacer la vue             |
+| Molette souris  | Zoomer / dézoomer           |
+
+---
+
+### 3. Les 3 boutons essentiels
+
+| Bouton      | Ce qu'il fait                                         |
+| ----------- | ----------------------------------------------------- |
+| ⏸ **Pause** | Fige la lave — utile pour observer un moment précis   |
+| ▶ **Reprendre** | Continue exactement là où on s'est arrêté         |
+| ■ **Reset** | Efface toute la lave et repart de zéro                |
+
+---
+
+### 4. Choisir un mode de simulation
+
+| Mode           | À utiliser quand…                                             |
+| -------------- | ------------------------------------------------------------- |
+| ⏱ **RÉALISTE** | Vous voulez observer la progression naturelle (chenaux, levées, figeage) |
+| ⚡ **ACCÉLÉRÉ** | Vous voulez voir le résultat final en quelques minutes        |
+
+---
+
+### Ce que vous voyez à l'écran
+
+- **Vue TEMP** : les couleurs vont du blanc (très chaud, ~1200°C) à l'orange foncé (refroidi, ~800°C)
+- **Vue ÉPAISS** : montre l'accumulation de lave — plus c'est épais, plus c'est visible
+- La lave suit **automatiquement** les ravines et vallées du terrain LiDAR réel
+
+---
+
+### Pour aller plus loin (optionnel)
+
+- **Déplacer la fissure** : faites glisser les poignées **A** et **B** sur la carte
+- **Changer le débit** : curseur *Débit (m³/s)* — de 10 (filet) à 500 (nappe massive)
+- **Couper l'arrivée de lave** : bouton **INJ: ON/OFF** — la lave déjà coulée continue de s'écouler mais plus rien n'est injecté
+
+---
+
+## Problèmes fréquents
+
+**La carte reste noire** → Le serveur local n'est pas lancé, ou vous avez ouvert le `.html` directement (double-clic). Passez par `http://localhost:8765/simul_lave_25d_v2.html`.
+
+**La lave ne coule pas** → Vérifiez que `tiles/terrain/` contient bien ~5500 fichiers `.bin`.
+
+**`python3 : commande introuvable` (Windows)** → Installez Python depuis [python.org](https://python.org) en cochant *Add Python to PATH*.
 
 ---
 
@@ -109,17 +164,18 @@ Vitesse = (h² / 3η) × (ρgh·pente − τ₀)   si ρgh·pente > τ₀
 ```
 
 Le refroidissement suit la loi de **Stefan-Boltzmann** :
+
 ```
 dT/dt = −k_croûte × ε·σ·(T⁴ − T_amb⁴) / (ρ·h·cp)
 ```
 
-| Paramètre | Valeur | Description |
-|---|---|---|
-| τ₀ | 110 × exp(0.011 × (1200−T)) Pa | Seuil de Bingham |
-| η | 160 × exp(0.009 × (1200−T)) Pa·s | Viscosité dynamique |
-| ρ | 2600 kg/m³ | Densité basalte |
-| ε | 0.95 | Émissivité |
-| Résolution | 5 m/pixel | LiDAR HD IGN |
+| Paramètre  | Valeur                           | Description         |
+| ---------- | -------------------------------- | ------------------- |
+| τ₀         | 110 × exp(0.011 × (1200−T)) Pa   | Seuil de Bingham    |
+| η          | 160 × exp(0.009 × (1200−T)) Pa·s | Viscosité dynamique |
+| ρ          | 2600 kg/m³                       | Densité basalte     |
+| ε          | 0.95                             | Émissivité          |
+| Résolution | 5 m/pixel                        | LiDAR HD IGN        |
 
 ---
 
@@ -140,16 +196,6 @@ python3 preprocess_tiles.py
 # 4. Recalculer l'ombrage si nécessaire
 python3 recompute_hillshade.py
 ```
-
----
-
-## Problèmes fréquents
-
-**La carte reste noire** → Le serveur local n'est pas lancé, ou vous avez ouvert le `.html` directement (double-clic). Passez par `http://localhost:8765/simul_lave_25d_v2.html`.
-
-**La lave ne coule pas** → Vérifiez que `tiles/terrain/` contient bien ~5500 fichiers `.bin`.
-
-**`python3 : commande introuvable` (Windows)** → Installez Python depuis [python.org](https://python.org) en cochant *Add Python to PATH*.
 
 ---
 
