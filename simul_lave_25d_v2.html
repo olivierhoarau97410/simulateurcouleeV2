@@ -1313,6 +1313,337 @@ document.addEventListener('keydown',e=>{
 // =============================================
 initTerrain();
 </script>
+
+<!-- ============================================================
+     TUTORIEL INTERACTIF
+     ============================================================ -->
+<style>
+#tuto-fab {
+  position: fixed; bottom: 22px; right: 22px; z-index: 3000;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #cc3300; color: #fff; font-size: 24px; font-weight: bold;
+  border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(204,51,0,.55);
+  transition: transform .2s, box-shadow .2s; display: flex; align-items: center;
+  justify-content: center; padding: 0;
+}
+#tuto-fab:hover { transform: scale(1.12); box-shadow: 0 6px 22px rgba(204,51,0,.75); }
+
+#tuto-overlay {
+  display: none; position: fixed; inset: 0; z-index: 4000;
+}
+#tuto-overlay.active { display: block; }
+
+/* masque sombre autour du spotlight */
+#tuto-mask {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.72);
+  clip-path: inset(0 0 0 0);   /* remplacé dynamiquement */
+  transition: clip-path .4s cubic-bezier(.4,0,.2,1);
+  pointer-events: all;
+}
+
+/* spotlight — rectangle "trou" */
+#tuto-spot {
+  position: absolute; border-radius: 8px;
+  box-shadow: 0 0 0 9999px rgba(0,0,0,.0); /* transparent, le masque fait le travail */
+  outline: 3px solid #cc3300;
+  transition: all .4s cubic-bezier(.4,0,.2,1);
+  pointer-events: none; z-index: 4001;
+  animation: spotPulse 2s ease-in-out infinite;
+}
+@keyframes spotPulse {
+  0%,100% { outline-color: #cc3300; outline-width: 3px; }
+  50%      { outline-color: #ff6633; outline-width: 4px; }
+}
+
+/* bulle */
+#tuto-bubble {
+  position: absolute; z-index: 4002;
+  background: #1a1a1a; border: 2px solid #cc3300; border-radius: 14px;
+  padding: 22px 26px 18px; max-width: 370px; min-width: 280px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.7);
+  transition: all .35s cubic-bezier(.4,0,.2,1);
+  pointer-events: all;
+}
+#tuto-step-num {
+  font-size: 11px; color: #cc3300; font-weight: bold;
+  letter-spacing: 1.5px; margin-bottom: 8px;
+}
+#tuto-title {
+  font-size: 15px; font-weight: bold; color: #fff; margin-bottom: 10px;
+}
+#tuto-text {
+  font-size: 13px; color: #ccc; line-height: 1.65; white-space: pre-line;
+}
+#tuto-nav {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 18px;
+}
+#tuto-skip {
+  font-size: 12px; color: #666; cursor: pointer; background: none;
+  border: none; padding: 0; text-decoration: underline;
+}
+#tuto-skip:hover { color: #999; }
+.tuto-btns { display: flex; gap: 8px; }
+#tuto-prev {
+  padding: 6px 15px; font-size: 12px; font-weight: bold;
+  border-radius: 6px; background: #2a2a2a; color: #999; border: 1px solid #555;
+  cursor: pointer;
+}
+#tuto-next {
+  padding: 6px 18px; font-size: 12px; font-weight: bold;
+  border-radius: 6px; background: #cc3300; color: #fff; border: none;
+  cursor: pointer;
+}
+#tuto-prev:hover { background: #3a3a3a; }
+#tuto-next:hover { background: #e03300; }
+/* points de progression */
+#tuto-dots {
+  display: flex; gap: 5px; align-items: center;
+}
+.tdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #444; transition: background .25s;
+}
+.tdot.active { background: #cc3300; }
+</style>
+
+<!-- Bouton flottant -->
+<button id="tuto-fab" title="Mode d'emploi / Aide">?</button>
+
+<!-- Overlay tutoriel -->
+<div id="tuto-overlay">
+  <div id="tuto-mask"></div>
+  <div id="tuto-spot"></div>
+  <div id="tuto-bubble">
+    <div id="tuto-step-num">ÉTAPE 1 / 9</div>
+    <div id="tuto-title"></div>
+    <div id="tuto-text"></div>
+    <div id="tuto-nav">
+      <button id="tuto-skip">Passer</button>
+      <div id="tuto-dots"></div>
+      <div class="tuto-btns">
+        <button id="tuto-prev">◀</button>
+        <button id="tuto-next">Suivant ▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const STEPS = [
+    {
+      target: null,
+      title: "🌋 SIMUL_LAVE_2.5D — Prise en main",
+      text: "Ce simulateur reproduit physiquement l'écoulement de la lave basaltique sur le relief réel de La Réunion (LiDAR HD — résolution 5 m/pixel, 2762 tuiles).\n\nLa lave se comporte comme un fluide de Bingham : elle s'arrête quand les forces de pesanteur ne suffisent plus à vaincre sa viscosité, créant lobules et digitations caractéristiques des vraies coulées.\n\nLes paramètres (viscosité, seuil de cisaillement, refroidissement radiatif) sont simplifiés mais calés sur le basalte du Piton de la Fournaise.\n\n⬇ Découvrez les fonctionnalités pas à pas."
+    },
+    {
+      target: 'btn-mode',
+      title: "⏱ / ⚡ Choisir le mode",
+      text: "Deux modes de simulation :\n\n• RÉALISTE — physique précise, refroidissement lent, temps quasi-réel. Idéal pour étudier un scénario de coulée sérieux.\n\n• ACCÉLÉRÉ — ×5 plus rapide, refroidissement plus fort. Idéal pour explorer rapidement différentes positions de fissure."
+    },
+    {
+      target: 'canvas-container',
+      title: "📍 Placer la fissure éruptive",
+      text: "Glissez la poignée A et la poignée B directement sur la carte pour définir l'emplacement et l'orientation de votre fissure éruptive.\n\nZoomez d'abord pour choisir un site précis — par exemple sur le sommet du Piton de la Fournaise ou sur le flanc qui vous intéresse."
+    },
+    {
+      target: 'zoom-controls',
+      title: "🗺️ Naviguer sur la carte",
+      text: "• + / − : zoom avant / arrière\n• Molette de la souris : zoom centré sous le curseur\n• Glisser la carte : déplacer la vue\n• ↺ : revenir à la vue complète de l'île\n\nLa minimap (coin bas-droit) montre votre position sur l'île et vous permet de cliquer pour vous y téléporter."
+    },
+    {
+      target: 'sl-debit',
+      title: "💧 Débit (m³/s)",
+      text: "Volume de lave injectée par seconde depuis la fissure.\n\n• Éruption typique Fournaise : 10–100 m³/s\n• Grande éruption (ex. avril 2007) : jusqu'à 300 m³/s\n• Valeur élevée (500–1000) : scénario extrême\n\nPlus le débit est fort, plus la coulée s'étend rapidement et loin."
+    },
+    {
+      target: 'btn-run',
+      title: "▶ Démarrer / ⏸ Pause",
+      text: "Cliquez ▶ Démarrer pour lancer la simulation.\n\nCliquez à nouveau pour mettre en pause — la lave reste en place, vous pouvez reprendre à tout moment.\n\nLa barre d'état en haut affiche le volume total écoulé et l'avancement en temps réel."
+    },
+    {
+      target: 'btn-inj',
+      title: "🔴 Couper l'injection",
+      text: "Simule l'arrêt de l'éruption : plus de lave n'est injectée depuis la fissure.\n\nLa lave déjà en place continue de s'écouler selon la pente jusqu'à s'arrêter progressivement.\n\nTrès utile pour voir où s'arrêterait finalement une coulée réelle après extinction de l'éruption."
+    },
+    {
+      target: 'btn-visu',
+      title: "🎨 Mode d'affichage",
+      text: "Basculez entre deux visualisations :\n\n• ÉPAISSEUR — teinte jaune→rouge→foncé selon l'épaisseur de lave (mince à épais)\n\n• TEMPÉRATURE — blanc/orange = lave chaude en surface, gris/noir = croûte froide refroidie"
+    },
+    {
+      target: 'btn-reset',
+      title: "🔄 RESET",
+      text: "Efface toute la lave et remet la simulation à zéro, sans toucher à la position de la fissure.\n\nUtile pour tester un autre débit ou un autre mode sans avoir à reconfigurer la fissure.\n\nBonne exploration ! 🌋"
+    },
+  ];
+
+  let current = 0;
+  const overlay = document.getElementById('tuto-overlay');
+  const spot    = document.getElementById('tuto-spot');
+  const mask    = document.getElementById('tuto-mask');
+  const bubble  = document.getElementById('tuto-bubble');
+  const stepNum = document.getElementById('tuto-step-num');
+  const titleEl = document.getElementById('tuto-title');
+  const textEl  = document.getElementById('tuto-text');
+  const dots    = document.getElementById('tuto-dots');
+  const fab     = document.getElementById('tuto-fab');
+
+  // Créer les dots
+  STEPS.forEach((_,i)=>{
+    const d = document.createElement('div');
+    d.className = 'tdot'; d.id = 'tdot'+i; dots.appendChild(d);
+  });
+
+  function getRect(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { top: r.top, left: r.left, width: r.width, height: r.height,
+             bottom: r.bottom, right: r.right };
+  }
+
+  function positionBubble(spotRect) {
+    const bw = 370, bh = 260; // estimation bulle
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const pad = 16;
+    let bl, bt;
+
+    if (!spotRect) {
+      // Intro — centré
+      bl = (vw - bw) / 2;
+      bt = (vh - bh) / 2;
+    } else {
+      // Essayer à droite
+      if (spotRect.right + pad + bw <= vw) {
+        bl = spotRect.right + pad;
+        bt = Math.max(pad, Math.min(spotRect.top, vh - bh - pad));
+      }
+      // Essayer à gauche
+      else if (spotRect.left - pad - bw >= 0) {
+        bl = spotRect.left - pad - bw;
+        bt = Math.max(pad, Math.min(spotRect.top, vh - bh - pad));
+      }
+      // Essayer en dessous
+      else if (spotRect.bottom + pad + bh <= vh) {
+        bt = spotRect.bottom + pad;
+        bl = Math.max(pad, Math.min(spotRect.left, vw - bw - pad));
+      }
+      // Au dessus
+      else {
+        bt = spotRect.top - pad - bh;
+        bl = Math.max(pad, Math.min(spotRect.left, vw - bw - pad));
+      }
+    }
+    bubble.style.left = Math.max(pad, bl) + 'px';
+    bubble.style.top  = Math.max(pad, bt) + 'px';
+  }
+
+  function showStep(n) {
+    const step = STEPS[n];
+    const total = STEPS.length;
+
+    stepNum.textContent = step.target ? `ÉTAPE ${n} / ${total-1}` : 'INTRODUCTION';
+    titleEl.textContent = step.title;
+    textEl.textContent  = step.text;
+
+    document.getElementById('tuto-prev').style.display = n === 0 ? 'none' : '';
+    document.getElementById('tuto-next').textContent =
+      n === total-1 ? 'Terminer ✓' : 'Suivant ▶';
+
+    // Dots
+    document.querySelectorAll('.tdot').forEach((d,i)=>{
+      d.classList.toggle('active', i===n);
+    });
+
+    // Spotlight
+    const PAD = 8;
+    if (step.target) {
+      const r = getRect(step.target);
+      if (r) {
+        const sl = r.left - PAD, st = r.top - PAD;
+        const sw = r.width + PAD*2, sh = r.height + PAD*2;
+        spot.style.left   = sl + 'px';
+        spot.style.top    = st + 'px';
+        spot.style.width  = sw + 'px';
+        spot.style.height = sh + 'px';
+        spot.style.display = 'block';
+
+        // masque avec clip-path polygon autour du spotlight
+        mask.style.clipPath = `polygon(
+          0% 0%, 100% 0%, 100% 100%, 0% 100%,
+          0% ${st}px,
+          ${sl}px ${st}px,
+          ${sl}px ${st+sh}px,
+          ${sl+sw}px ${st+sh}px,
+          ${sl+sw}px ${st}px,
+          0% ${st}px,
+          0% 0%
+        )`;
+        positionBubble(r);
+      }
+    } else {
+      spot.style.display = 'none';
+      mask.style.clipPath = 'none';
+      positionBubble(null);
+    }
+  }
+
+  function closeTuto() {
+    overlay.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  function openTuto() {
+    current = 0;
+    overlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    showStep(0);
+  }
+
+  fab.addEventListener('click', openTuto);
+
+  document.getElementById('tuto-next').addEventListener('click', ()=>{
+    if (current < STEPS.length-1) { current++; showStep(current); }
+    else closeTuto();
+  });
+  document.getElementById('tuto-prev').addEventListener('click', ()=>{
+    if (current > 0) { current--; showStep(current); }
+  });
+  document.getElementById('tuto-skip').addEventListener('click', closeTuto);
+
+  // Clic sur le masque = étape suivante
+  mask.addEventListener('click', ()=>{
+    if (current < STEPS.length-1) { current++; showStep(current); }
+    else closeTuto();
+  });
+
+  // Touche Échap = fermer
+  document.addEventListener('keydown', e=>{
+    if (!overlay.classList.contains('active')) return;
+    if (e.key==='Escape') closeTuto();
+    if (e.key==='ArrowRight'||e.key===' ') {
+      e.preventDefault();
+      if (current < STEPS.length-1) { current++; showStep(current); }
+      else closeTuto();
+    }
+    if (e.key==='ArrowLeft' && current > 0) { current--; showStep(current); }
+  });
+
+  // Ouvrir automatiquement au 1er chargement
+  window.addEventListener('load', ()=>{
+    setTimeout(()=>{ if(!sessionStorage.getItem('tuto_seen')) openTuto(); }, 1800);
+  });
+  overlay.addEventListener('transitionend', ()=>{
+    if (!overlay.classList.contains('active')) sessionStorage.setItem('tuto_seen','1');
+  });
+  document.getElementById('tuto-skip').addEventListener('click', ()=>{
+    sessionStorage.setItem('tuto_seen','1');
+  });
+})();
+</script>
 </body>
 </html>
 
