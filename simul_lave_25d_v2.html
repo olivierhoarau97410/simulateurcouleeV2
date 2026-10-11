@@ -1644,6 +1644,124 @@ initTerrain();
   });
 })();
 </script>
+
+<!-- ═══════════════════════════ QR CODE ═══════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+#qr-fab {
+  position: fixed; bottom: 82px; right: 22px; z-index: 3000;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #1a3a5c; color: #fff; font-size: 22px;
+  border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(26,58,92,.55);
+  transition: transform .2s, box-shadow .2s;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+}
+#qr-fab:hover { transform: scale(1.12); box-shadow: 0 6px 22px rgba(26,58,92,.75); }
+#qr-modal {
+  display: none; position: fixed; inset: 0; z-index: 4000;
+  background: rgba(0,0,0,.6); align-items: center; justify-content: center;
+}
+#qr-modal.open { display: flex; }
+#qr-card {
+  background: #fff; border-radius: 18px; padding: 28px 32px 24px;
+  text-align: center; box-shadow: 0 8px 40px rgba(0,0,0,.45);
+  max-width: 300px; width: 90%;
+  animation: qrPop .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes qrPop { from { transform: scale(.82); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+#qr-volcano { margin-bottom: 10px; }
+#qr-title { font-family: system-ui,sans-serif; font-size: 15px; font-weight: 700;
+  color: #1a3a5c; margin-bottom: 4px; }
+#qr-sub { font-family: system-ui,sans-serif; font-size: 11px; color: #888;
+  margin-bottom: 14px; letter-spacing: .02em; }
+#qr-canvas { margin: 0 auto 14px; }
+#qr-url { font-family: monospace; font-size: 9.5px; color: #555;
+  word-break: break-all; margin-bottom: 16px; line-height: 1.5; }
+#qr-close {
+  background: #cc3300; color: #fff; border: none; border-radius: 8px;
+  padding: 8px 22px; font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: background .15s;
+}
+#qr-close:hover { background: #aa2200; }
+</style>
+
+<!-- Bouton QR -->
+<button id="qr-fab" title="QR Code — accès direct au simulateur">
+  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+    <rect x="14" y="14" width="3" height="3"/><rect x="18" y="14" width="3" height="3"/>
+    <rect x="14" y="18" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/>
+  </svg>
+</button>
+
+<!-- Modal QR -->
+<div id="qr-modal" role="dialog" aria-modal="true" aria-label="QR Code simulateur">
+  <div id="qr-card">
+    <div id="qr-volcano">
+      <svg width="48" height="48" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <!-- volcan stylisé -->
+        <defs>
+          <radialGradient id="lavaG" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ff6633"/>
+            <stop offset="100%" stop-color="#cc2200"/>
+          </radialGradient>
+        </defs>
+        <!-- corps du volcan -->
+        <polygon points="32,8 52,56 12,56" fill="#3a2a1a"/>
+        <polygon points="32,8 44,56 20,56" fill="#5a4030"/>
+        <!-- cratère -->
+        <ellipse cx="32" cy="9" rx="6" ry="3" fill="#2a1a0a"/>
+        <!-- coulée de lave -->
+        <path d="M32 12 Q36 24 38 32 Q40 38 36 44 Q34 50 36 56" stroke="url(#lavaG)" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M30 14 Q26 26 24 34 Q22 40 26 48 Q28 52 28 56" stroke="#ff4400" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".7"/>
+        <!-- panache de fumée -->
+        <circle cx="30" cy="5" r="3" fill="#bbb" opacity=".6"/>
+        <circle cx="34" cy="3" r="2.5" fill="#ccc" opacity=".5"/>
+        <circle cx="27" cy="2" r="2" fill="#aaa" opacity=".4"/>
+      </svg>
+    </div>
+    <div id="qr-title">Simulateur de coulée de lave</div>
+    <div id="qr-sub">La Réunion — LiDAR HD · Rhéologie de Bingham</div>
+    <div id="qr-canvas"></div>
+    <div id="qr-url">olivierhoarau97410.github.io/<br>simulateurcouleeV2/simul_lave_25d_v2.html</div>
+    <button id="qr-close">Fermer</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const URL_SIM = 'https://olivierhoarau97410.github.io/simulateurcouleeV2/simul_lave_25d_v2.html';
+  let qrGenerated = false;
+
+  function openQR() {
+    const modal = document.getElementById('qr-modal');
+    modal.classList.add('open');
+    if (!qrGenerated) {
+      new QRCode(document.getElementById('qr-canvas'), {
+        text: URL_SIM,
+        width: 180, height: 180,
+        colorDark: '#1a3a5c', colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      qrGenerated = true;
+    }
+  }
+
+  function closeQR() {
+    document.getElementById('qr-modal').classList.remove('open');
+  }
+
+  document.getElementById('qr-fab').addEventListener('click', openQR);
+  document.getElementById('qr-close').addEventListener('click', closeQR);
+  document.getElementById('qr-modal').addEventListener('click', function(e){
+    if (e.target === this) closeQR();
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') closeQR();
+  });
+})();
+</script>
 </body>
 </html>
 
